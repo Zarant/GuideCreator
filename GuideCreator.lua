@@ -37,7 +37,7 @@ function GC_MapCoords(arg)
 end
 
 
-local Debug = true
+local Debug = false
 if Debug == true then
 	eventFrame:RegisterAllEvents()
 end
@@ -56,7 +56,7 @@ local function getQuestId(name,level,zone,text)
 	end
 	
 	for id,quest in pairs(GC_questsDB) do
-		print(quest)
+		--print(quest)
 		if quest["name"] == name
 		and quest["level"] == level 
 		and quest["sort"] == zone 
@@ -96,7 +96,7 @@ local function getQuestData()
 		else
 		local _,text = GetQuestLogQuestText()
 		local id = getQuestId(name,level,zone,text)
-			print(name..tostring(level)..zone..text)
+			--print(name..tostring(level)..zone..text)
 			questData[id] = {}
 			questData[id]["name"] = name
 			questData[id]["text"] = text
@@ -619,7 +619,7 @@ end
 SlashCmdList["GUIDE"] = function(msg)
 	_,_,cmd,arg = strfind(msg,"%s?(%w+)%s?(.*)")
 	
-	print(cmd)
+	--print(cmd)
 	if cmd then
 		cmd = strlower(cmd)
 	end
