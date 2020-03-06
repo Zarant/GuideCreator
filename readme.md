@@ -1,8 +1,11 @@
-#GuideCreator
-##Overview
+# GuideCreator
+
+## Overview
+
 This is an addon for Vanilla WoW (1.12) that assists in the creation of in-game leveling guides by auto generating a Guidelime text string every time you accept, turn in or complete quest objectives.
 
-##Commands
+## Commands
+
 `/guide editor` Opens the text editor where you can edit each indivdual step or copy the text generated so you can move it over to a proper text editor
 `/guide delete GuideName` Delete the specified guide, erasing its contents from memory
 `/guide list` Lists all guides saved in memory
