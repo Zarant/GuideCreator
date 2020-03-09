@@ -22,13 +22,16 @@ function GC_init()
 end
 
 function GC_MapCoords(arg)
-	if arg == 0 then
+	if arg then
+		arg = tostring(arg)
+	end
+	if arg == "0" then
 		GC_Settings["mapCoords"] = 0
 		print("Quest coordinates auto generation enabled only upon quest accept/turn in")
-	elseif arg == 1 then
+	elseif arg == "1" then
 		GC_Settings["mapCoords"] = 1
 		print("Quest coordinates auto generation enabled for all quest objectives")
-	elseif arg == -1 then
+	elseif arg == "-1" then
 		GC_Settings["mapCoords"] = -1
 		print("Quest coordinates auto generation disabled")
 	else
