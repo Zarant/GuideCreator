@@ -4,6 +4,10 @@
 
 This is an addon for Vanilla WoW (1.12) that assists in the creation of in-game leveling guides by auto generating a Guidelime text string every time you accept, turn in or complete quest objectives.
 
+##Limitations
+
+You need an english client for it to work, due to the older client primitive API this addon relies on parsing text data to detect quest activity.
+
 ## Commands
 
 `/guide editor` Opens the text editor where you can edit each indivdual step or copy the text generated so you can move it over to a proper text editor
@@ -19,3 +23,4 @@ This is an addon for Vanilla WoW (1.12) that assists in the creation of in-game 
 `/guide mapcoords n` Set n to -1 to disable map coordinates generation and use Guidelime's database instead, set it to 0 to only generate map coordinates upon quest accept/turn in or set it to 1 enable waypoint generation upon completing quest objectives
 
 `/guide current GuideName` Sets the current working guide
+
