@@ -7,6 +7,15 @@ eventFrame:RegisterEvent("QUEST_FINISHED")
 eventFrame:RegisterEvent("QUEST_LOG_UPDATE")
 eventFrame:RegisterEvent("QUEST_DETAIL")
 eventFrame:RegisterEvent("PLAYER_LOGIN")
+GC_Debug = true
+
+local playerFaction = ""
+local _, race = UnitRace("player")
+if race == "Human" or race == "NightElf" or race == "Dwarf" or race == "Gnome" or race == "Draenei" then
+	playerFaction = "Alliance"
+else
+	playerFaction = "Horde"
+end
 
 function GC_init()
 	if not GC_Settings then 
@@ -18,6 +27,23 @@ function GC_init()
 	end
 	if not GC_GuideList then
 		GC_GuideList = {}
+	end
+end
+
+function print(arg)
+	if arg == nil then
+		arg = ":nil"
+	elseif arg == true then
+		arg = ":true"
+	elseif arg == false then
+		arg = ":false"
+	end
+		DEFAULT_CHAT_FRAME:AddMessage(tostring(arg))
+end
+
+local function debugMsg(arg)
+	if GC_Debug then
+		print(arg)
 	end
 end
 
@@ -40,19 +66,22 @@ function GC_MapCoords(arg)
 end
 
 
-local Debug = false
-if Debug == true then
-	eventFrame:RegisterAllEvents()
-end
+
+--	eventFrame:RegisterAllEvents()
+
 
 local QuestLog = {}
+completedObjectives = {}
 QuestLog[0] = 0
 
 local function getQuestId(name,level,zone,text)
 	if not text then text = "" end
-	local faction = UnitFactionGroup("player") 
+	--local faction = UnitFactionGroup("player") 
 	
+	--print(name) print(level) print(zone) print(text)
+	--txt = text
 	for id,quest in pairs(QuestLog) do
+		
 		if id > 0 and quest["name"] == name and quest["level"] == level and quest["zone"] == zone and quest["text"] == text then
 			return id
 		end
@@ -63,8 +92,8 @@ local function getQuestId(name,level,zone,text)
 		if quest["name"] == name
 		and quest["level"] == level 
 		and quest["sort"] == zone 
-		and quest["objective"] == text 
-		and (not quest["faction"] or quest["faction"] == faction) then
+		and (not quest["objective"] or strsub(quest["objective"],1,9) == strsub(text,1,9))
+		and (not quest["faction"] or quest["faction"] == playerFaction) then
 			return id
 		end
 	end
@@ -133,48 +162,70 @@ local function updateGuide(step)
 	print("Step added:"..step)
 	updateWindow()
 end
+
+local questEvent = ""
+
 local function questObjectiveComplete(id,name,obj,text,type)
-	--print(format("%d-%s-%s-%s-%s",id,name,obj,text,type))
+	debugMsg(format("%d-%s-%s-%s-%s",id,name,obj,text,type))
 	local step = ""
 	if GC_Settings["syntax"] == "Guidelime" then
 		if type == "monster" then
 			local _,_,monster,n = strfind(text,"(.*)%sslain%:%s%d*%/(%d*)")
+			n = tonumber(n)
 			if monster then
-				step = format("Kill [QC%d,%d -]%s (x%d)",id,obj,monster,n)
+				if n > 1 then
+					step = format("Kill [QC%d,%d-]%s (x%d)",id,obj,monster,n)
+				else
+					step = format("Kill [QC%d,%d-]%s",id,obj,monster)
+				end
 			else
 				_,_,monster = strfind(text,"(.*)%:%s%d*/%d*")
-				step = format("[QC%d,%d -]%s (x%d)",id,obj,monster,n)
+				step = format("[QC%d,%d-]%s",id,obj,monster)
 			end
 		elseif type == "item" then
 			local _,_,item,n = strfind(text,"(.*)%:%s%d*/(%d*)")
-			step = format("Collect [QC%d,%d-]%s (x%d)",id,obj,item,n)
+			n = tonumber(n)
+			if n > 1 then
+				step = format("Collect [QC%d,%d-]%s (x%d)",id,obj,item,n)
+			else
+				step = format("Collect [QC%d,%d-]%s",id,obj,item)
+			end		
 		elseif type == "event" then
-			step = text
+			step = format("[QC%d,%d-]%s",id,obj,text)
+		elseif type == "object" then
+			local _,_,item,n = strfind(text,"(.*)%:%s%d*/(%d*)")
+			n = tonumber(n)
+			if n > 1 then
+				step = format("[QC%d,%d-]%s (x%d)",id,obj,item,n)
+			else
+				step = format("[QC%d,%d-]%s",id,obj,item)
+			end
 		end
-
-		if previousQuest == id then
+		if GC_Settings["mapCoords"] > 0 then
+			local mapName = GetMapInfo()
+			if mapName then
+				local x, y = GetPlayerMapPosition("player")
+				step = format("[G%.1f,%.1f%s]%s",x*100,y*100,mapName,step)
+			end
+		end
+		--[[if previousQuest == id and questEvent == "complete" then
 			step = "\\\\\n"..step
 		else
-			if GC_Settings["mapCoords"] > 0 then
-				local mapName = GetMapInfo()
-				if mapName then
-					local x, y = GetPlayerMapPosition("player")
-					step = format("[G%.1f,%.1f%s]%s",x*100,y*100,mapName,step)
-				end
-			end
 			step = "\n"..step
-		end
+		end]]
+		step = "\n"..step
 	end
 	questNPC = nil
 	previousQuestNPC = nil
 	previousQuest = id
-	
+	questEvent = "complete"
 	updateGuide(step)
 end
-local function compareQuestObjectives(questData,objective)
+local function compareQuestObjectives(questData,objective,index)
+	if not objective then return end
+	objective = gsub(objective,"%s%(Complete%)","")
 	for id,quest in pairs(questData) do
 		if id > 0 then
-			--print(id)
 			local nobj = 0
 			if questData[id]["objectives"] then
 				nobj = table.getn(questData[id]["objectives"])
@@ -182,8 +233,10 @@ local function compareQuestObjectives(questData,objective)
 			if nobj > 0 then
 				for j = 1,nobj do
 					--print(j.."-"..id)
-					--print("-"..questData[id]["objectives"][j][1]) print("-"..questComplete)
-					if questData[id]["objectives"][j][1] == objective and questData[id]["objectives"][j][3] then 
+					--print("-"..questData[id]["objectives"][j][1]) print("--")
+					if questData[id]["objectives"][j][1] == objective and questData[id]["objectives"][j][3] then
+						completedObjectives[index] = nil
+						debugMsg('p')
 						return questObjectiveComplete(id,questData[id]["name"],j,objective,questData[id]["objectives"][j][2]) 
 					end
 				end
@@ -228,13 +281,13 @@ local function questTurnIn(id,name)
 			end
 		end
 		step = format("%sTurn in [QT%d %s]",step,id,name)
-		if previousQuestNPC == questNPC then
+		if previousQuestNPC == questNPC and questEvent ~= "complete" then
 			step = "\\\\"..step
 		end
 	end
 	previousQuest = 0
 	previousQuestNPC = questNPC
-	
+	questEvent = "turnin"
 	updateGuide(step)
 end
 local function questAccept(id,name)
@@ -253,13 +306,13 @@ local function questAccept(id,name)
 			end
 		end
 		step = format("%sAccept [QA%d %s]",step,id,name)
-		if previousQuestNPC == questNPC then
+		if questNPC and previousQuestNPC == questNPC then
 			step = "\\\\"..step
 		end
 	end
 	previousQuest = 0
 	previousQuestNPC = questNPC
-	
+	questEvent = "accept"
 	updateGuide(step)
 end
 
@@ -268,30 +321,47 @@ local previousQuest = 0
 
 
 
-local questLogChanged = false
+local questLogChanged = -100
 local questFinished = false
-local completedObjectives = {}
+
 
 eventFrame:SetScript("OnEvent",function()
+local faction = UnitFactionGroup("player") 
+if faction then
+	playerFaction = faction --Keeps updating the player faction in case GM mode is enabled
+end
 
 if event == "PLAYER_LOGIN" then
 	GC_init()
 	print("GuideCreator Loaded")
 end
 
+debugMsg(event)
+
 if event == "UI_INFO_MESSAGE" then
+	debugMsg(arg1)
+
 	local _,_,a,b = strfind(arg1,"%u.*%S%:%s(%d*)%/(%d*)")
-	if a and a == b then
-		--print(arg1)
-		table.insert(completedObjectives,arg1)
-	elseif string.find(arg1,".*%s%(%u%a*%)") then
-		--print(arg1)
-		table.insert(completedObjectives,arg1)
-	end	
+	if (a and a == b) or string.find(arg1,".*%s%(%u%a*%)") then
+		if not completedObjectives[1] then
+			completedObjectives[1] = arg1
+		elseif not completedObjectives[2] then
+			completedObjectives[2] = arg1
+		elseif not completedObjectives[3] then
+			completedObjectives[3] = arg1
+		else
+			table.insert(completedObjectives,arg1)
+		end
+	else
+		return
+	end
+	debugMsg('ok')
+	questLogChanged = GetTime()
+	QuestLog = getQuestData()
 end
 --/run print(string.find("Aasdiosj asoijdh: 7/7",""))
 if event == "UNIT_QUEST_LOG_CHANGED" and arg1 == "player"  then
-	questLogChanged = true
+	questLogChanged = GetTime()
 	QuestLog = getQuestData()
 end
 if event == "QUEST_FINISHED" then 
@@ -308,25 +378,30 @@ if event == "QUEST_DETAIL" then
 end
 
 if event == "QUEST_LOG_UPDATE" then
-	if 	questLogChanged then
-		questData = getQuestData()
+	local timer = GetTime() - questLogChanged
+	if 	timer < 0.5 then
+		debugMsg(timer)
+		local questData = getQuestData()
+		
 		local q,id,name = compareQuests(questData)
 		--print(q)
 		if q > 0 then
 			questAccept(id,name)
+			QuestLog = questData
 		elseif q < 0 and questFinished == true then
 			questTurnIn(id,name)
+			QuestLog = questData
 		elseif questComplete and id > 0 then
 			questObjectiveComplete(id,name,obj,text)
 		end
-		questLogChanged = false
+		
 		questComplete = nil
-		QuestLog = questData
+		debugMsg(table.getn(completedObjectives))
 		if table.getn(completedObjectives) > 0 then
-			for i,v in ipairs(completedObjectives) do
-				compareQuestObjectives(questData,v)				
+			for i,v in pairs(completedObjectives) do
+				debugMsg(tostring(i)..'__'..tostring(v))
+				compareQuestObjectives(questData,v,i)				
 			end
-			completedObjectives = {}
 		end
 	end
 	
@@ -363,16 +438,7 @@ end)
 
 
 
-function print(arg)
-	if arg == nil then
-		arg = ":nil"
-	elseif arg == true then
-		arg = ":true"
-	elseif arg == false then
-		arg = ":false"
-	end
-		DEFAULT_CHAT_FRAME:AddMessage(tostring(arg))
-end
+
 
 
 
