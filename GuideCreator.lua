@@ -7,7 +7,7 @@ eventFrame:RegisterEvent("QUEST_FINISHED")
 eventFrame:RegisterEvent("QUEST_LOG_UPDATE")
 eventFrame:RegisterEvent("QUEST_DETAIL")
 eventFrame:RegisterEvent("PLAYER_LOGIN")
-GC_Debug = true
+GC_Debug = false
 
 local playerFaction = ""
 local _, race = UnitRace("player")
