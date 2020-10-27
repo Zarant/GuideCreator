@@ -6,3 +6,4 @@
 
 GuideCreator.lua
 Guidelime_QuestsDB.lua
+Guidelime_CreaturesDB.lua
