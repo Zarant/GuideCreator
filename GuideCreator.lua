@@ -645,6 +645,10 @@ end
 
 if event == "PLAYER_LOGIN" then
 	GC_init()
+	GC_Settings.width = GC_Settings.width or 600
+	GC_Settings.height = GC_Settings.height or 300
+	f:SetWidth(GC_Settings.width)
+	f:SetHeight(GC_Settings.height)
 	print("GuideCreator Loaded")
 end
 
@@ -692,7 +696,7 @@ elseif event == "CHAT_MSG_SYSTEM" then
 		questNPC = UnitName("target")
 	end
 end
---/run print(string.find("Aasdiosj asoijdh: 7/7",""))
+
 if event == "UNIT_QUEST_LOG_CHANGED" and arg1 == "player"  then
 	questLogChanged = GetTime()
 	QuestLog = getQuestData()
@@ -834,12 +838,19 @@ f:Hide()
 
 f:SetMovable(true)
 f:SetClampedToScreen(true)
+f:SetResizable(true)
 f:SetScript("OnMouseDown", function(self, button)
+	if IsAltKeyDown() then
+		f:StartSizing("BOTTOMRIGHT")
+	else
 		f:StartMoving()
+	end
 end)
 f:EnableMouse(1)
 f:SetScript("OnMouseUp", function(self,button)
 	f:StopMovingOrSizing()
+	GC_Settings.width = f:GetWidth()
+	GC_Settings.height = f:GetHeight()
 end)
 f:SetScript("OnShow", function(self)
 	updateWindow()
@@ -847,7 +858,7 @@ end)
 
 
 
-local width,height = 700,300
+local width,height = 600,300
 
 f:SetWidth(width)
 f:SetHeight(height)
@@ -1012,7 +1023,7 @@ local 	commandList = {
 		["current"] = {GC_CurrentGuide,SLASH_GUIDE1.." current GuideName | Sets the current working guide"};
 		["list"] = {GC_ListGuides,SLASH_GUIDE1.." list | Lists all guides saved in memory"};
 		["delete"] = {GC_DeleteGuide,SLASH_GUIDE1.." delete GuideName | Delete the specified guide, erasing its contents from memory"};
-		["editor"] = {GC_Editor,SLASH_GUIDE1.." editor | Opens the text editor where you can edit each indivdual step or copy them over to a proper text editor"};
+		["editor"] = {GC_Editor,SLASH_GUIDE1.." editor | Opens the text editor where you can edit each indivdual step or copy them over to a proper text editor, you can use alt+click to resize the window"};
 		["mapcoords"] = { GC_MapCoords, SLASH_GUIDE1.." mapcoords n | Set n to -1 to disable map coordinates generation and use Guidelime's database instead, set it to 0 to only generate map coordinates upon quest accept/turn in or set it to 1 enable waypoint generation upon completing quest objectives" };
 		["goto"] = {GC_Goto,SLASH_GUIDE1.." goto | Generate a goto step at your current location"}
 	}
