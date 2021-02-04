@@ -33,7 +33,7 @@ local name = GetMapInfoOLD()
 	elseif name == "Dustwallow" then
 		return "Dustwallow Marsh"
 	elseif name == "ThousandNeedles" then
-		return "Thousand Needles"	
+		return "Thousand Needles"
 	elseif name == "Alterac" then
 		return "Alterac Mountains"
 	elseif name == "Arathi" then
@@ -54,6 +54,20 @@ local name = GetMapInfoOLD()
 		return "Loch Modan"
 	elseif name == "DunMorogh" then
 		return "Dun Morogh"
+	elseif name == "SearingGorge" then
+		return "Searing Gorge"
+	elseif name == "BurningSteppes" then
+		return "Burning Steppes"
+	elseif name == "Aszhara" then
+		return "Azshara"	
+	elseif name == "Tirisfal" then
+		return "Tirisfal Glades"
+	elseif name == "WesternPlaguelands" then
+		return "Western Plaguelands"
+	elseif name == "EasternPlaguelands" then
+		return "Eastern Plaguelands"
+	elseif name == "BlastedLands" then
+		return "Blasted Lands"
 	else
 		return name
 	end
