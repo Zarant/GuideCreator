@@ -10,7 +10,7 @@ You need an english client for it to work, this addon relies on parsing text dat
 
 ## Commands
 
-`/guide editor` Opens the text editor where you can edit each indivdual step or copy the text generated so you can move it over to a proper text editor
+`/guide editor` Opens the text editor where you can edit each indivdual step or copy the text generated so you can move it over to a proper text editor, you can use alt+click to resize the window
 
 `/guide delete GuideName` Delete the specified guide, erasing its contents from memory
 

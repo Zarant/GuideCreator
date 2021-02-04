@@ -1,6 +1,6 @@
 ﻿--1.12
 local eventFrame = CreateFrame("Frame");
-local f = CreateFrame("Frame", "GC_Editor", UIParent)
+f = CreateFrame("Frame", "GC_Editor", UIParent)
 eventFrame:RegisterEvent("UNIT_QUEST_LOG_CHANGED")
 eventFrame:RegisterEvent("UI_INFO_MESSAGE")
 eventFrame:RegisterEvent("QUEST_FINISHED")
@@ -10,7 +10,7 @@ eventFrame:RegisterEvent("PLAYER_LOGIN")
 eventFrame:RegisterEvent("CHAT_MSG_SYSTEM")
 GC_Debug = false
 local GetMapInfoOLD = GetMapInfo
-local updateWindow
+--UpdateWindow, ScrollDown
 local questObjectiveComplete
 
 local function GetMapInfo()
@@ -224,7 +224,9 @@ local function getQuestId(index)
 end
 
 
-function updateWindow()
+
+
+function UpdateWindow()
 	if GC_Settings["CurrentGuide"] then
 		f.TextFrame.text:SetText("Current Guide: "..GC_Settings["CurrentGuide"])
 	else
@@ -235,7 +237,11 @@ function updateWindow()
 		f.Text:SetText(GC_GuideList[GC_Settings["CurrentGuide"]])
 	end
 	f.Text:ClearFocus()
+	ScrollDown()
 end
+
+
+
 
 local function getQuestData()
 
@@ -274,7 +280,7 @@ local function updateGuide(step)
 	end
 	GC_GuideList[GC_Settings["CurrentGuide"]] = GC_GuideList[GC_Settings["CurrentGuide"]]..step
 	print("Step added:"..step)
-	updateWindow()
+	UpdateWindow()
 end
 
 local lastx,lasty = -10.0,-10.0
@@ -853,7 +859,7 @@ f:SetScript("OnMouseUp", function(self,button)
 	GC_Settings.height = f:GetHeight()
 end)
 f:SetScript("OnShow", function(self)
-	updateWindow()
+	UpdateWindow()
 end)
 
 
@@ -946,18 +952,9 @@ f.Text:SetScript("OnEscapePressed", function(self) f.Text:ClearFocus() end)
 f.SF:SetScrollChild(f.Text)
 
 
-f.Text:SetScript("OnMouseWheel", function(self, delta)
-	local cur_val = ScrollBar:GetValue()
-	local min_val, max_val = ScrollBar:GetMinMaxValues()
-
-	if delta < 0 and cur_val < max_val then
-		cur_val = math.min(max_val, cur_val + 1)
-		ScrollBar:SetValue(cur_val)			
-	elseif delta > 0 and cur_val > min_val then
-		cur_val = math.max(min_val, cur_val - 1)
-		ScrollBar:SetValue(cur_val)		
-	end	
-end)
+function ScrollDown()
+f.SF:SetVerticalScroll(f.SF:GetVerticalScrollRange())
+end
 
 function GC_Editor()
 f:Show()
@@ -1000,13 +997,13 @@ StaticPopupDialogs["GC_GoTo"] = {
 	end,
 	OnAccept = function()
         	local editBox = getglobal(this:GetParent():GetName().."EditBox")
-		addGotoStep(editBox:GetText())
 		this:Hide()
+		addGotoStep(editBox:GetText())
 	 end,
 	EditBoxOnEnterPressed = function()
         	local editBox = getglobal(this:GetParent():GetName().."EditBox")
-		addGotoStep(this:GetText())
 		this:GetParent():Hide()
+		addGotoStep(this:GetText())
 	end,
 	EditBoxOnEscapePressed = function()
 		this:GetParent():Hide()
