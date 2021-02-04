@@ -2,11 +2,11 @@
 
 ## Overview
 
-This is an addon for Vanilla WoW (1.12) that assists in the creation of in-game leveling guides by auto generating a Guidelime text string every time you accept, turn in or complete quest objectives.
+This is an addon for TBC WoW (2.4.3) that assists in the creation of in-game leveling guides by auto generating a Guidelime text string every time you accept, turn in or complete quest objectives.
 
 ## Limitations
 
-You need an english client for it to work, due to the older client primitive API this addon relies on parsing text data to detect quest activity.
+You need an english client for it to work, this addon relies on parsing text data to detect quest activity.
 
 ## Commands
 
