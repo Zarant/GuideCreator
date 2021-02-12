@@ -3,6 +3,7 @@
 ## Notes: Auto generates in-game leveling guides
 ## Author: Zarant
 ## SavedVariables: GC_GuideList, GC_Settings
+## SavedVariablesPerCharacter: GC_QuestTable
 
 GuideCreator.lua
 Guidelime_QuestsDB.lua

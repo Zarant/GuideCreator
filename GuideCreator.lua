@@ -8,6 +8,7 @@ eventFrame:RegisterEvent("QUEST_LOG_UPDATE")
 eventFrame:RegisterEvent("QUEST_DETAIL")
 eventFrame:RegisterEvent("PLAYER_LOGIN")
 eventFrame:RegisterEvent("CHAT_MSG_SYSTEM")
+eventFrame:RegisterEvent("TAXIMAP_OPENED")
 GC_Debug = false
 local GetMapInfoOLD = GetMapInfo
 
@@ -68,6 +69,8 @@ local name = GetMapInfoOLD()
 		return "Eastern Plaguelands"
 	elseif name == "BlastedLands" then
 		return "Blasted Lands"
+	elseif name == "Elwynn" then
+		return "Elwynn Forest"
 	else
 		return name
 	end
@@ -91,6 +94,9 @@ function GC_init()
 	end
 	if not GC_GuideList then
 		GC_GuideList = {}
+	end
+	if not GC_QuestTable then
+		GC_QuestTable = {}
 	end
 end
 
@@ -135,6 +141,7 @@ end
 
 
 local QuestLog = {}
+
 completedObjectives = {}
 QuestLog[0] = 0
 
@@ -236,10 +243,11 @@ end
 	f.Text:ClearFocus()
 end
 
+
 local function getQuestData()
 
-	local questData = {}
 	local n = GetNumQuestLogEntries()
+	local questData = {}
 	local zone = ""
 	questData[0] = 0
 	for i = 1,n do
@@ -250,6 +258,7 @@ local function getQuestData()
 		else
 		local _,text = GetQuestLogQuestText()
 		local id = getQuestId(name,level,zone,text)
+			GC_QuestTable[id] = false
 			--print(name..tostring(level)..zone..text)
 			questData[id] = {}
 			questData[id]["name"] = name
@@ -258,6 +267,7 @@ local function getQuestData()
 			questData[id]["tracked"] = IsQuestWatched(i)
 			questData[id]["zone"] = zone
 			questData[id]["level"] = level
+			questData[id].index = i
 			local nobj = GetNumQuestLeaderBoards(i)
 			if nobj > 0 then
 			questData[id]["objectives"] = {}
@@ -288,6 +298,7 @@ end
 local questEvent = ""
 
 local function questObjectiveComplete(id,name,obj,text,type)
+	if VGuide and not GC_Debug then return end
 	debugMsg(format("%d-%s-%s-%s-%s",id,name,obj,text,type))
 	local step = ""
 	if GC_Settings["syntax"] == "Guidelime" then
@@ -370,6 +381,7 @@ local function compareQuestObjectives(questData,objective,index,done)
 					if obj1 == obj2 and (questData[id]["objectives"][j][3] or done) then
 						completedObjectives[index] = nil
 						debugMsg('p')
+						QuestLog[id].index = questData[id].index
 						return questObjectiveComplete(id,questData[id]["name"],j,objective,questData[id]["objectives"][j][2]) 
 					end
 				end
@@ -400,6 +412,7 @@ local previousQuestNPC = nil
 local questNPC = nil
 
 local function questTurnIn(id,name)
+	if VGuide and not GC_Debug then return end
 	--print(questNPC)
 	local step = "\n"
 	if GC_Settings["syntax"] == "Guidelime" then
@@ -424,6 +437,7 @@ local function questTurnIn(id,name)
 	updateGuide(step)
 end
 local function questAccept(id,name)
+	if VGuide and not GC_Debug then return end
 	--print(questNPC)
 	local step = "\n"
 	if GC_Settings["syntax"] == "Guidelime" then
@@ -450,9 +464,91 @@ local function questAccept(id,name)
 end
 
 local previousQuest = 0
+--fp,home,fly,hs
+
+if not QAlist then
+QAlist = {}
+end
+if not QTlist then
+QTlist = {}
+end
+if not QClist then
+QClist = {}
+end
+local Refresh
+
+
+local function SkipCurrentStep()
+	if VGuide then
+		VGuide.Display:NextStep()
+		VGuide.UI.fMain:LoadStepData()
+		VGuide.UI.fMain:RefreshData()
+		--VGuide.Display.CurrentStep
+		Refresh()
+	end
+end
 
 
 
+function SetHS()
+	if stepType == "home" then
+		SkipCurrentStep(1)
+	end
+end
+
+function FlightPath()
+	if stepType == "fp" then
+		SkipCurrentStep(1)
+	end
+end
+
+function Refresh()
+	local skip
+	local stepCount
+	if QAlist then
+		for _,id in ipairs(QAlist) do
+			stepCount = true
+			if GC_QuestTable[id] == nil then
+				skip = true
+			end
+		end
+	end
+	if QTlist then
+		for _,id in ipairs(QTlist) do
+			stepCount = true
+			if not GC_QuestTable[id] then
+				skip = true
+			end
+		end
+	end
+	if QClist then
+		for id,obj in pairs(QClist) do
+			stepCount = true
+			
+			if QuestLog[id] and QuestLog[id].index then
+				local qIndex = QuestLog[id].index
+				local name,level,questTag,isHeader,isCollapsed,isComplete = GetQuestLogTitle(qIndex)
+				local nobj = GetNumQuestLeaderBoards(i)
+				if obj == 0 and not(GC_QuestTable[id]) and (not isComplete and nobj > 0) then
+					skip = true
+				elseif obj and obj > 0 then
+					for i = 1,nobj do
+						if bit.band(1,bit.rshift(obj,i-1)) == 1 then
+							--print(obj) print(
+							local _,_,done = GetQuestLogLeaderBoard(i, qIndex)
+							if not done then skip = true end
+						end
+					end
+				end
+			end
+		end
+	end
+	
+	if not skip and stepCount then
+		SkipCurrentStep()
+	end
+end
+autoskip = Refresh
 
 local questLogChanged = -100
 local questFinished = false
@@ -460,7 +556,7 @@ local questFinished = false
 
 eventFrame:SetScript("OnEvent",function()
 	debugMsg(event)
-
+	--print(event)
 	if event == "PLAYER_LOGIN" then
 		GC_init()
 		print("GuideCreator Loaded")
@@ -471,6 +567,8 @@ eventFrame:SetScript("OnEvent",function()
 				questNPC = UnitName("target")
 			end
 			--print('ok')
+		elseif strfind(arg1,"(.+) is now your home.") then
+			SetHS()
 		end
 		--print(arg1)
 	elseif event == "UI_INFO_MESSAGE" then
@@ -494,12 +592,16 @@ eventFrame:SetScript("OnEvent",function()
 				completedObjectives[2] = nil
 			end
 		--print('ok')
+		elseif string.find(arg1,"New flight path discovered!") then
+			FlightPath()
 		else
 			return
 		end
 		debugMsg('ok')
 		questLogChanged = GetTime()
 		QuestLog = getQuestData()
+	elseif event == "TAXIMAP_OPENED" and stepType == "fly" then
+		SkipCurrentStep(1)
 	elseif event == "UNIT_QUEST_LOG_CHANGED" and arg1 == "player"  then
 		questLogChanged = GetTime()
 		QuestLog = getQuestData()
@@ -508,6 +610,7 @@ eventFrame:SetScript("OnEvent",function()
 		if not UnitPlayerControlled("target") then
 			questNPC = UnitName("target")
 		end
+		
 	elseif event == "QUEST_DETAIL" then
 		if not UnitPlayerControlled("target") then
 			questNPC = UnitName("target")
@@ -525,9 +628,16 @@ eventFrame:SetScript("OnEvent",function()
 			if q > 0 then
 				questAccept(id,name)
 				QuestLog = questData
-			elseif q < 0 and questFinished == true then
-				questTurnIn(id,name)
-				QuestLog = questData
+			elseif q < 0 then
+				if questFinished == true then
+					questTurnIn(id,name)
+					QuestLog = questData
+					if type(id) == "number" then
+						GC_QuestTable[id] = true
+					end
+				elseif type(id) == "number" then
+					GC_QuestTable[id] = nil
+				end
 			elseif questComplete and id > 0 then
 				questObjectiveComplete(id,name,obj,text)
 			end
@@ -547,6 +657,7 @@ eventFrame:SetScript("OnEvent",function()
 		if GetNumQuestLogEntries() > 0 and QuestLog[0] == 0 then
 			QuestLog = getQuestData()
 		end
+		Refresh()
 	end
 
 	if Debug == true then
@@ -571,6 +682,9 @@ eventFrame:SetScript("OnEvent",function()
 			DEFAULT_CHAT_FRAME:AddMessage(a)
 		end
 	end
+	
+
+	
 end)
 
 
