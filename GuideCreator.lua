@@ -1,6 +1,6 @@
 ﻿--1.12
 local eventFrame = CreateFrame("Frame");
-f = CreateFrame("Frame", "GC_Editor", UIParent)
+local f = CreateFrame("Frame", "GC_Editor", UIParent)
 eventFrame:RegisterEvent("UNIT_QUEST_LOG_CHANGED")
 eventFrame:RegisterEvent("UI_INFO_MESSAGE")
 eventFrame:RegisterEvent("QUEST_FINISHED")
@@ -10,7 +10,7 @@ eventFrame:RegisterEvent("PLAYER_LOGIN")
 eventFrame:RegisterEvent("CHAT_MSG_SYSTEM")
 GC_Debug = false
 local GetMapInfoOLD = GetMapInfo
---UpdateWindow, ScrollDown
+local UpdateWindow, ScrollDown
 local questObjectiveComplete
 
 local function GetMapInfo()
@@ -89,6 +89,8 @@ local function GetMapInfo()
 		return "Blade's Edge Mountains"
 	elseif name == "ShadowmoonValley" then
 		return "Shadowmoon Valley"
+	elseif name == "Elwynn" then
+		return "Elwynn Forest"
 	else
 		return name
 	end
