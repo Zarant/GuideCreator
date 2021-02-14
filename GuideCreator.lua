@@ -506,41 +506,67 @@ function Refresh()
 	local skip
 	local stepCount
 	if QAlist then
-		for _,id in ipairs(QAlist) do
+		if type(QAlist) == "table" then
+			for _,id in ipairs(QAlist) do
+				stepCount = true
+				if GC_QuestTable[id] == nil then
+					skip = true
+				end
+			end
+		else
 			stepCount = true
-			if GC_QuestTable[id] == nil then
+			if GC_QuestTable[QAlist] == nil then
 				skip = true
 			end
 		end
 	end
 	if QTlist then
-		for _,id in ipairs(QTlist) do
+		if type(QTlist) == "table" then
+			for _,id in ipairs(QTlist) do
+				stepCount = true
+				if not GC_QuestTable[id] then
+					skip = true
+				end
+			end
+		else
 			stepCount = true
-			if not GC_QuestTable[id] then
+			if not GC_QuestTable[QTlist] then
 				skip = true
 			end
 		end
 	end
 	if QClist then
-		for id,obj in pairs(QClist) do
-			stepCount = true
-			
-			if QuestLog[id] and QuestLog[id].index then
-				local qIndex = QuestLog[id].index
-				local name,level,questTag,isHeader,isCollapsed,isComplete = GetQuestLogTitle(qIndex)
-				local nobj = GetNumQuestLeaderBoards(i)
-				if obj == 0 and not(GC_QuestTable[id]) and (not isComplete and nobj > 0) then
-					skip = true
-				elseif obj and obj > 0 then
-					for i = 1,nobj do
-						if bit.band(1,bit.rshift(obj,i-1)) == 1 then
-							--print(obj) print(
-							local _,_,done = GetQuestLogLeaderBoard(i, qIndex)
-							if not done then skip = true end
+		if type(QClist) == "table" then
+			for id,obj in pairs(QClist) do
+				stepCount = true	
+				if QuestLog[id] and QuestLog[id].index then
+					local qIndex = QuestLog[id].index
+					local name,level,questTag,isHeader,isCollapsed,isComplete = GetQuestLogTitle(qIndex)
+					local nobj = GetNumQuestLeaderBoards(i)
+					if obj == 0 and not(GC_QuestTable[id]) and (not isComplete and nobj > 0) then
+						skip = true
+					elseif obj and obj > 0 then
+						for i = 1,nobj do
+							if bit.band(1,bit.rshift(obj,i-1)) == 1 then
+								--print(obj) print(
+								local _,_,done = GetQuestLogLeaderBoard(i, qIndex)
+								if not done then skip = true end
+							end
 						end
 					end
 				end
 			end
+		else
+			stepCount = true	
+			if QuestLog[QClist] and QuestLog[QClist].index then
+				local qIndex = QuestLog[QClist].index
+				local name,level,questTag,isHeader,isCollapsed,isComplete = GetQuestLogTitle(qIndex)
+				local nobj = GetNumQuestLeaderBoards(qIndex)
+				if obj == 0 and not(GC_QuestTable[id]) and (not isComplete and nobj > 0) then
+					skip = true
+				end
+			end
+		
 		end
 	end
 	
