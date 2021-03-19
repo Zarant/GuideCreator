@@ -8,10 +8,16 @@ eventFrame:RegisterEvent("QUEST_LOG_UPDATE")
 eventFrame:RegisterEvent("QUEST_DETAIL")
 eventFrame:RegisterEvent("PLAYER_LOGIN")
 eventFrame:RegisterEvent("CHAT_MSG_SYSTEM")
+eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
+
+
+
 GC_Debug = false
 local GetMapInfoOLD = GetMapInfo
 local UpdateWindow, ScrollDown
 local questObjectiveComplete
+local questFinished = 0.0
+local questTurnIn,questAccept
 
 local function GetMapInfo()
 	local name = GetMapInfoOLD()
@@ -98,6 +104,7 @@ end
 
 local playerFaction = ""
 local _, race = UnitRace("player")
+local _,class = UnitClass("player");
 if race == "Human" or race == "NightElf" or race == "Dwarf" or race == "Gnome" or race == "Draenei" then
 	playerFaction = "Alliance"
 else
@@ -116,6 +123,10 @@ function GC_init()
 	end
 	if not GC_GuideList then
 		GC_GuideList = {}
+	end
+	if UnitLevel('player') == 1 and UnitXP("player") == 0 and GetNumQuestLogEntries() == 0 then
+		GC_Settings["CurrentGuide"] = UnitName("player")
+		GC_GuideList[GC_Settings["CurrentGuide"]] = ""
 	end
 end
 
@@ -139,6 +150,10 @@ local function print(...)
 	end
 	DEFAULT_CHAT_FRAME:AddMessage(output)
 end
+--[[
+function Print(...)
+	return print(...)
+end]]
 
 local function pguide(...)
 	local args = {...}
@@ -216,7 +231,7 @@ end
 local QuestLog = {}
 completedObjectives = {}
 completedQuestName = nil
-QuestLog[0] = 0
+
 
 local function getQuestId(index)
 	local link = GetQuestLink(index)
@@ -242,7 +257,15 @@ function UpdateWindow()
 	ScrollDown()
 end
 
-
+local function IsQuestComplete(quest)
+	--print(quest)
+	for i = 1,GetNumQuestLogEntries() do
+		local questTitle, level, questTag, suggestedGroup, isHeader, isCollapsed, isComplete = GetQuestLogTitle(i);
+		if isComplete and (questTitle == quest) then
+			return true
+		end
+	end
+end
 
 
 local function getQuestData()
@@ -253,11 +276,12 @@ local function getQuestData()
 	for i = 1,n do
 		local id = getQuestId(i)
 		if id then
+			questData[0] = questData[0] + 1
 			questData[id] = {}
 			questData[id]["name"] = select(1,GetQuestLogTitle(i))
 			questData[id]["completed"] = select(7,GetQuestLogTitle(i))
-			questData[id]["tracked"] = IsQuestWatched(i)
-			debugMsg(questData[id]["name"],questData[id]["completed"],questData[id]["tracked"])
+			--questData[id]["tracked"] = IsQuestWatched(i)
+			debugMsg(questData[id]["name"],questData[id]["completed"])
 			local nobj = GetNumQuestLeaderBoards(i)
 			if nobj > 0 then
 			questData[id]["objectives"] = {}
@@ -266,12 +290,13 @@ local function getQuestData()
 					questData[id]["objectives"][j] = {desc,type,done}
 				end
 			end
-			questData[0] = questData[0]+1
+
 		end
 	end
 	--print(questData[0])
 	return questData
 end
+
 
 local function updateGuide(step)
 	if not GC_Settings["CurrentGuide"] then
@@ -481,32 +506,40 @@ end
 
 
 
-
+local loadtime = 0
 local function compareQuests(questData)
 
-if questData[0] == QuestLog[0] +1 then
-	for id,quest in pairs(questData) do
-		if not QuestLog[id] then
-			return 1,id,questData[id]["name"]
+	local quests = {}
+	local q,id,name = 0,0,""
+	if GetTime() - loadtime > 1 then
+		for i,v in pairs(QuestLog) do
+			quests[i] = true
 		end
-	end
-elseif questData[0] == QuestLog[0] -1 then
-	for id,quest in pairs(QuestLog) do
-		if not questData[id] then
-		--or (completedQuestName and id and questData[id] and questData[id]["name"] == completedQuestName) then
-			completedQuestName = nil
-			return -1,id,QuestLog[id]["name"]
+		--quests[0] = nil
+
+		for i,v in pairs(questData) do
+			if quests[i] then
+				quests[i] = nil
+			elseif i ~= 0 and questData[0] <= QuestLog[0] + 1 then
+				questAccept(i,v.name)
+			end
 		end
+		for i,v in pairs(quests) do
+			if QuestLog[i].name and (GetTime() - questFinished < 1.0 or QuestLog[i].turnin) then
+				questFinished = 0.0
+				questTurnIn(i,QuestLog[i].name)
+			end
+		end
+		
+		QuestLog = questData
 	end
-end
-return 0,0
 end
 
 local previousQuestNPC = nil
 local questNPC = nil
 
 
-local function questTurnIn(id,name)
+function questTurnIn(id,name)
 	debugMsg("turnin",questNPC)
 	if previousQuest then
 		previousQuest = nil
@@ -553,7 +586,7 @@ local function questTurnIn(id,name)
 	lastx = x
 	lasty = y
 end
-local function questAccept(id,name)
+function questAccept(id,name)
 	if previousQuest then
 		previousQuest = nil
 		lastx = -10
@@ -638,11 +671,39 @@ end
 
 local previousQuest
 
+local function ScanQG(option)
+local title = GetActiveTitle(option)
+	if title and IsQuestComplete(title) then
+		--print(title)
+		for i,v in pairs(QuestLog) do
+			if i ~= 0 and v.name == title then
+				--print(i)
+				v.turnin = true
+			end
+		end
+	end
+end
+
+local function ScanG(option)
+local title, level, lowlvl = select(option * 3 - 2, GetGossipActiveQuests())
+	if title and IsQuestComplete(title) then
+		--print(title)
+		for i,v in pairs(QuestLog) do
+			if i ~= 0 and v.name == title then
+				--print(i)
+				v.turnin = true
+			end
+		end
+	end
+end
+
+hooksecurefunc("SelectActiveQuest",ScanQG)
+hooksecurefunc("SelectGossipActiveQuest",ScanG)
 
 
 
 local questLogChanged = -100
-local questFinished = 0.0
+
 
 
 eventFrame:SetScript("OnEvent",function()
@@ -658,6 +719,9 @@ if event == "PLAYER_LOGIN" then
 	f:SetWidth(GC_Settings.width)
 	f:SetHeight(GC_Settings.height)
 	print("GuideCreator Loaded")
+	loadtime = GetTime()
+elseif event == "PLAYER_ENTERING_WORLD" then
+	QuestLog = getQuestData()
 end
 
 debugMsg(event)
@@ -686,7 +750,6 @@ if event == "UI_INFO_MESSAGE" then
 	if not questFinished then
 		debugMsg('ok')
 		questLogChanged = GetTime()
-		QuestLog = getQuestData()
 	end
 elseif event == "CHAT_MSG_SYSTEM" then
 	local quest = string.match(arg1,"(.+) completed.")
@@ -707,7 +770,10 @@ end
 
 if event == "UNIT_QUEST_LOG_CHANGED" and arg1 == "player"  then
 	questLogChanged = GetTime()
-	QuestLog = getQuestData()
+	--QuestLog = getQuestData()
+	if table.getn(QuestLog) == 0 or QuestLog[0] == 0 then
+		QuestLog = getQuestData()
+	end
 end
 if event == "QUEST_FINISHED" then 
 	questFinished = GetTime()
@@ -725,23 +791,12 @@ end
 
 if event == "QUEST_LOG_UPDATE" then
 	local timer = GetTime() - questLogChanged
-	if 	timer < 0.5 then
 		debugMsg(timer)
 		local questData = getQuestData()
 		
-		local q,id,name = compareQuests(questData)
-		debugMsg("q =",q)
-		if q > 0 then
-			questAccept(id,name)
-			QuestLog = questData
-		elseif q < 0 and GetTime() - questFinished < 1.0 then
-			questFinished = 0.0
-			questTurnIn(id,name)
-			QuestLog = questData
-		elseif questComplete and id > 0 then
-			questObjectiveComplete(id,name,obj,text)
-		end
+		compareQuests(questData)		
 		
+	if 	timer < 0.5 then
 		questComplete = nil
 		debugMsg(table.getn(completedObjectives))
 		if table.getn(completedObjectives) > 0 then
@@ -752,11 +807,6 @@ if event == "QUEST_LOG_UPDATE" then
 		end
 	end
 	
-	
-	--questComplete = nil
-	if GetNumQuestLogEntries() > 0 and QuestLog[0] == 0 then
-		QuestLog = getQuestData()
-	end
 end
 
 	if Debug == true then
@@ -1070,3 +1120,194 @@ SlashCmdList["GUIDE"] = function(msg)
 		end
 	end	
 end 
+
+local WPList = {}
+local frameCounter = 0
+local function ClearAllMarks()
+	for _,f in pairs(WPList) do
+		f:Hide()
+		f.t = nil
+		f.x = nil
+		f.y = nil
+		f.map = nil
+	end
+	frameCounter = 0
+end
+
+function WPUpdate()
+	local mapName = GetMapInfo()
+	for _,f in pairs(WPList) do
+		if mapName == f.map then
+			f:Show()
+		else
+			f:Hide()
+		end
+	end
+end
+
+function CreateWPframe(text,x,y,map)
+  if not name then name = "GFP"..tostring(frameCounter) end
+  if not parent then parent = WorldMapButton end
+  
+  local f
+  
+  if WPList[frameCounter] then
+    f = WPList[frameCounter]
+  else
+	f = CreateFrame("Button", name, parent)
+	table.insert(WPList,f)
+  end
+  
+  f:SetWidth(16)
+  f:SetHeight(16)
+
+--[[
+  if parent == WorldMapButton then
+    f.defalpha = pfQuest_config["worldmaptransp"] + 0
+  else
+    f.defalpha = pfQuest_config["minimaptransp"] + 0
+    f.minimap = true
+  end]]
+
+ --[[
+  f:SetScript("OnEnter", pfMap.NodeEnter)
+  f:SetScript("OnLeave", pfMap.NodeLeave)
+  f:SetScript("OnUpdate", pfMap.NodeUpdate)
+  ]]
+
+  --[[f.tex = f:CreateTexture("OVERLAY")
+  f.tex:SetAllPoints(f)
+  ]]
+  f.x = tonumber(x) / 100 * WorldMapButton:GetWidth()
+  f.y = tonumber(y) / 100 * WorldMapButton:GetHeight()
+  f.t = text
+  f.map = map
+  
+  f:ClearAllPoints()
+  f:SetPoint("CENTER", WorldMapButton, "TOPLEFT", f.x, -f.y)
+  f:Show()
+  
+f.text = f:CreateFontString(nil,"OVERLAY") 
+f.text:SetFontObject(GameFontRed)
+f.text:SetPoint("TOPLEFT",10,-5)
+f.text:SetJustifyH("RIGHT")
+f.text:SetJustifyV("TOP")
+f.text:SetPoint("TOPLEFT",0,0)
+f.text:SetText(text)
+--f.text:SetTextColor(0.9,0.1,0.1,1)
+
+  return f
+end
+
+--wp = CreateWPframe()
+
+
+local L = {"A","B","C","D","E","F","G","H","I","J","K","L","M","N","O","P","Q","R","S","T","U","V","W","X","Y","Z"}
+--local L = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
+
+function GenerateWaypoints(guide,start,finish)
+	ClearAllMarks()
+	local gLine = ""
+	local sx,si = 1,0
+	start = start or 1
+	finish = finish or #guide.steps
+	local gotoList = {}
+	
+	for currentStep = start,finish do
+		local step = guide.steps[currentStep]
+		local optional
+		if step.applies then
+			step.skip = true
+			step.applies:gsub("([^,]+)",function(entry)
+				if strupper(entry) == class or entry == race or entry == playerFaction then
+					step.skip = false
+				end
+			end)
+		end
+		if not step.skip and not step.scryer then
+			--/run Parseguide(guideList[1])
+			
+			gLine = gLine .. "\n"
+			local stepLabel = ""
+			local textLabel = "\n    "
+			local nsi = si
+			local nsx = sx
+			if step.goto then
+				si = si + 1
+				if si > 9 then
+					si = 1
+					sx = sx+1
+				end
+				stepLabel = L[sx]..tostring(si)
+				textLabel = "\n"..stepLabel.. ": "
+			end
+			
+			if step.goto then
+				for _,element in pairs(step.goto) do
+					for _,v in pairs(gotoList) do
+						if v[1] == element.zone
+						and math.abs(tonumber(v[2]) - tonumber(element.x)) < 2
+						and math.abs(tonumber(v[3]) - tonumber(element.y)) < 2
+						then
+							step.skip = true
+							element.iconFrame = v[4]
+							stepLabel = v[5]
+							--element.iconFrame.text:SetText(element.iconFrame.text:GetText().."/"..stepLabel)
+						end
+					end
+
+					if not element.iconFrame and not element.skip then
+						element.iconFrame = CreateWPframe(stepLabel,element.x,element.y,element.zone)
+						table.insert(gotoList,{element.zone,element.x,element.y,element.iconFrame,stepLabel})
+						step.skip = nil
+					end
+				end
+			end
+			
+			if step.skip then
+				si = nsi
+				sx = nsx
+				textLabel = "\n"..stepLabel.. ": "
+			end
+			
+			
+			for j,element in pairs(step.elements) do
+				if element.questId then
+					local code = ""
+					
+					if not element.complete then
+						gLine = gLine .. textLabel.. string.format(element.text,element.title)
+					else
+						gLine = gLine ..textLabel .. string.format(element.text,element.title,element.qty)
+					end
+					
+				elseif element.itemId then
+					gLine = gLine .. textLabel .. string.format(element.text,element.title,element.qty)
+				elseif element.home then
+					gLine = gLine .. textLabel..string.format(element.text,element.home)
+				elseif element.fly then
+					gLine = gLine .. textLabel ..string.format(element.text,element.fly)
+				elseif element.fpath then
+					gLine = gLine .. textLabel ..string.format(element.text,element.fpath)
+				elseif element.xp then
+					gLine = gLine .. textLabel ..string.format(element.text,element.xp)
+				elseif element.hs then
+					gLine = gLine .. textLabel .. string.format(element.text,element.hs)
+				elseif element.text then
+					gLine = gLine .. textLabel .. element.text
+				end
+				
+			end
+			
+		end
+	end
+	--gLine = gLine .. string.format('\n]],\"%s\")',guide.group)
+	
+	--print(gLine)
+	GC_GuideList[GC_Settings["CurrentGuide"]] = gLine
+	WPUpdate()
+	return gLine
+end
+
+
