@@ -1,6 +1,6 @@
 ﻿
 local eventFrame = CreateFrame("Frame");
-local f = CreateFrame("Frame", "GC_Editor", UIParent)
+local f = CreateFrame("Frame", "GC_Editor", UIParent, "BackdropTemplate")
 --eventFrame:RegisterEvent("UNIT_QUEST_LOG_CHANGED")
 --eventFrame:RegisterEvent("UI_INFO_MESSAGE")
 
@@ -704,7 +704,7 @@ local backdrop = {
      },
 }
 
-f.Text = CreateFrame("EditBox", nil, f)
+f.Text = CreateFrame("EditBox", nil, f, "BackdropTemplate")
 f.Text:SetBackdrop(backdrop)
 f.Text:SetBackdropColor(0.1,0.1,0.1)
 f.Text:SetMultiLine(true)
