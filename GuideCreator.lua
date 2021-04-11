@@ -356,7 +356,6 @@ local function questAccept(id, name)
             name = "*undefined*"
         end
         if id ~= nil then
-            print("{ name: "..name..", id: "..id.." }")
             step = string.format("%s    .accept %s##%d", step, name, id)
         else
             print("error")
