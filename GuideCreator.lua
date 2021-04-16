@@ -1,4 +1,4 @@
-﻿local eventFrame = CreateFrame("Frame")
+local eventFrame = CreateFrame("Frame")
 local f = CreateFrame("Frame", "GC_Editor", UIParent, "BackdropTemplate")
 
 eventFrame:RegisterEvent("QUEST_LOG_UPDATE")
@@ -40,7 +40,7 @@ end
 function GC_init()
     if not GC_Settings then
         GC_Settings = {}
-        GC_Settings["syntax"] = "Zygor"
+        GC_Settings["syntax"] = "RXP"
         GC_Settings["mapCoords"] = 0
         GC_Settings["CurrentGuide"] = "New Guide"
         GC_Settings["NPCnames"] = false
@@ -251,6 +251,45 @@ function questObjectiveComplete(id, name, obj, text, type)
             end
         end
         lastUnique = isUnique
+	elseif GC_Settings["syntax"] == "RXP" then
+        if type == "monster" then
+            monster, n = string.match(text, "(.*)%sslain%:%s%d+%/(%d+)")
+
+            if not monster then
+                monster, n = string.match(text, "(.*)%:%s%d+/(%d+)")
+            end
+			step = string.format(".complete %d,%d --%s (%s)", id, obj, monster,n)
+            n = tonumber(n)
+        elseif type == "item" then
+            item, n = string.match(text, "(.*)%:%s%d*/(%d*)")
+            n = tonumber(n)
+            step = string.format(".complete %d,%d --%s (%d)",id, obj,item,n)
+        elseif type == "event" then
+            item, n = string.match(text, "(.*)%:%s%d+/(%d+)")
+            if item then
+                step = string.format(".complete %d,%d --%s (%s)", id, obj,text,n)
+                n = tonumber(n)
+            else
+                n = 1
+                step = string.format(".complete %d,%d --%s (%d)", id, obj,text,n)
+            end
+        elseif type == "object" then
+            item, n = string.match(text, "(.*)%:%s%d*/(%d*)")
+            n = tonumber(n)
+            step = string.format(".complete %d,%d --%s (%d)", id, obj,item,n)
+        end
+
+        local distance = (lastx - x) ^ 2 + (lasty - y) ^ 2
+
+        local isUnique = n == 1
+        if (mapName == lastMap and (lastx > 0 and distance < 0.03)) then
+            step = "\n    " .. step
+        else
+            if mapName then
+                step = string.format("\nstep\n    .goto %s,%.1f,%.1f\n    %s", mapName, x, y, step)
+            end
+        end
+        lastUnique = isUnique
     end
     questNPC = nil
     previousQuestNPC = nil
@@ -308,6 +347,18 @@ local function questTurnIn(id, name)
             end
         end
         step = string.format("%s    .turnin %s##%d", step, name, id)
+    elseif GC_Settings["syntax"] == "RXP" then
+        x, y = GetPlayerMapPosition("player")
+        x = x * 100
+        y = y * 100
+        local distance = (lastx - x) ^ 2 + (lasty - y) ^ 2
+        if not (mapName == lastMap and (lastx > 0 and distance < 0.03)) then
+            step = string.format("\nstep\n    .goto %s,%.1f,%.1f\n", mapName, x, y)
+            if GC_Settings["NPCnames"] and questNPC and previousQuestNPC ~= questNPC then
+                step = step .. "    >>Speak to " .. questNPC .. "\n"
+            end
+        end
+        step = string.format("%s    .turnin %d >>Turn in %s", step, id, name)
     end
     lastMap = mapName
     previousQuestNPC = questNPC
@@ -360,6 +411,26 @@ local function questAccept(id, name)
         else
             print("error")
         end
+    elseif GC_Settings["syntax"] == "RXP" then
+        x, y = GetPlayerMapPosition("player")
+        x = x * 100
+        y = y * 100
+        local distance = (lastx - x) ^ 2 + (lasty - y) ^ 2
+
+        if not (mapName == lastMap and (lastx > 0 and distance < 0.03)) then
+            step = string.format("\nstep\n    .goto %s,%.1f,%.1f\n", mapName, x, y)
+            if GC_Settings["NPCnames"] and questNPC and previousQuestNPC ~= questNPC then
+                step = step .. "    >>Speak to " .. questNPC .. "\n"
+            end
+        end
+        if name == nil then
+            name = "*undefined*"
+        end
+        if id ~= nil then
+            step = string.format("%s    .accept %d >>Accept %s", step, id,name)
+        else
+            print("error")
+        end
     end
     previousQuestNPC = questNPC
     questEvent = "accept"
@@ -381,6 +452,8 @@ local function FlightPath()
         step = format("\n[G%.1f,%.1f%s]Get the [P %s] flight path", x, y, mapName, subzone)
     elseif GC_Settings["syntax"] == "Zygor" then
         step = string.format("\nstep\n    goto %s,%.1f,%.1f\n    fpath %s", mapName, x, y, subzone)
+    elseif GC_Settings["syntax"] == "RXP" then
+        step = string.format("\nstep\n    .goto %s,%.1f,%.1f\n    .fp >>Get the %s Flight Path", mapName, x, y, subzone)
     end
     updateGuide(step)
 end
@@ -399,6 +472,8 @@ local function SetHearthstone(home)
         step = format("\n[G%.1f,%.1f%s][S]Set your Hearthstone to %s", x, y, mapName, home)
     elseif GC_Settings["syntax"] == "Zygor" then
         step = string.format("\nstep\n    goto %s,%.1f,%.1f\n    home %s", mapName, x, y, home)
+    elseif GC_Settings["syntax"] == "RXP" then
+        step = string.format("\nstep\n    .goto %s,%.1f,%.1f\n    .home >>Set your Hearthstone to %s", mapName, x, y, home)
     end
     updateGuide(step)
 end
@@ -424,30 +499,22 @@ eventFrame:SetScript(
 
         if event == "UI_INFO_MESSAGE" then
             debugMsg(arg1)
-            if string.match(arg1, "New flight path discovered!") then
+            if arg1 == ERR_NEWTAXIPATH then
                 FlightPath()
             else
                 return
             end
-        end
-
-        if event == "HEARTHSTONE_BOUND" then
+        elseif event == "HEARTHSTONE_BOUND" then
             SetHearthstone(home)
-        end
-
-        if event == "QUEST_DETAIL" or event == "QUEST_COMPLETE" then
+        elseif event == "QUEST_DETAIL" or event == "QUEST_COMPLETE" then
             CquestId = GetQuestID()
             Cname = C_QuestLog.GetQuestInfo(CquestId)
-        end
-
-        if event == "QUEST_ACCEPTED" then
+        elseif event == "QUEST_ACCEPTED" then
             Cname = C_QuestLog.GetQuestInfo(CquestId)
             questAccept(CquestId, Cname)
             CquestId = nil
             Cname = nil
-        end
-
-        if event == "QUEST_TURNED_IN" then
+        elseif event == "QUEST_TURNED_IN" then
             debugMsg(event)
             if Cname == nil then
                 Cname = "*undefined*"
@@ -458,15 +525,11 @@ eventFrame:SetScript(
             if not UnitPlayerControlled("target") then
                 questNPC = UnitName("target")
             end
-        end
-
-        if event == "QUEST_DETAIL" then
+        elseif event == "QUEST_DETAIL" then
             if not UnitPlayerControlled("target") then
                 questNPC = UnitName("target")
             end
-        end
-
-        if event == "QUEST_LOG_UPDATE" then
+        elseif event == "QUEST_LOG_UPDATE" then
             local questData, questIndex = getQuestData()
 
             if QuestLog then
