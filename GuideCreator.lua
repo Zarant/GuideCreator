@@ -20,21 +20,19 @@ GC_Debug = false
 
 local UpdateWindow, ScrollDown
 local questObjectiveComplete
-local questFinished = 0.0
 local questTurnIn, questAccept
 local lastx, lasty = -10.0, -10.0
 local lastMap = ""
 local questEvent = ""
-local lastStep
 local lastId
 local lastObj
 local lastUnique
-local loadtime = 0
 local previousQuestNPC = nil
 local questNPC = nil
 local previousQuest
 local onFly = false
 local taxiTime = 0
+local QuestLog
 
 local playerFaction = ""
 local _, race = UnitRace("player")
@@ -59,8 +57,7 @@ local function GetPlayerMapPosition(unitToken)
     return pos.x, pos.y
 end
 
-function GC_init()
-    local name, realm = UnitName("player")
+local function GC_init()
     if not GC_Settings then
         GC_Settings = {}
         GC_Settings["syntax"] = "RXP"
@@ -81,7 +78,7 @@ local function debugMsg(arg)
     end
 end
 
-function GC_MapCoords(arg)
+local function GC_MapCoords(arg)
     if arg then
         arg = tostring(arg)
     end
@@ -113,16 +110,7 @@ function UpdateWindow()
     ScrollDown()
 end
 
-local function IsQuestComplete(quest)
-    for i = 1, GetNumQuestLogEntries() do
-        local questTitle, level, questTag, suggestedGroup, isHeader, isCollapsed, isComplete = GetQuestLogTitle(i)
-        if isComplete and (questTitle == quest) then
-            return true
-        end
-    end
-end
-
-function getQuestData()
+local function getQuestData()
     local questData = {}
     local questIndex = {}
     local n = GetNumQuestLogEntries()
@@ -130,7 +118,13 @@ function getQuestData()
     for i = 1, n do
         local title, level, suggestedGroup, isHeader, isCollapsed, isComplete, frequency, questID = GetQuestLogTitle(i)
         if questID and GetNumQuestLeaderBoards(i) > 0 then
-            questData[questID] = C_QuestLog.GetQuestObjectives(questID)
+            local qo = C_QuestLog.GetQuestObjectives(questID)
+            for key, value in pairs(qo) do
+                if QuestLog and QuestLog[questID] and QuestLog[questID][key] and QuestLog[questID][key].finished ~= value.finished then
+                    value.finished = true
+                end
+            end
+            questData[questID] = qo
             questIndex[questID] = i
         end
     end
@@ -305,7 +299,10 @@ function questObjectiveComplete(id, name, obj, text, type)
     previousQuestNPC = nil
     previousQuest = id
     questEvent = "complete"
-    if not skip or (lastObj == obj and lastId == id) then
+    if lastObj ~= obj or lastId ~= id then
+        if QuestLog and QuestLog[id] and  QuestLog[id][obj] then
+            QuestLog[id][obj]["finished"] = true
+        end
         updateGuide(step)
     end
     lastId = id
@@ -315,8 +312,7 @@ function questObjectiveComplete(id, name, obj, text, type)
     lastMap = mapName
 end
 
-local function questTurnIn(id, name)
-    debugMsg("turnin", questNPC)
+function questTurnIn(id, name)
     if previousQuest then
         previousQuest = nil
         lastx = -10
@@ -373,7 +369,7 @@ local function questTurnIn(id, name)
     lasty = y
 end
 
-local function questAccept(id, name)
+function questAccept(id, name)
     if previousQuest then
         previousQuest = nil
         lastx = -10
@@ -468,7 +464,6 @@ local function UseHearthstone()
     local step = "\n"
     local mapName = GetMapInfo()
     local home = GetBindLocation()
-    debugMsg("UseHearthstone: "..home)
 
     if GC_Settings["syntax"] == "Guidelime" then
         local x, y = GetPlayerMapPosition("player")
@@ -538,8 +533,20 @@ eventFrame:SetScript(
     "OnEvent",
     function(self, event, arg1, arg2, arg3, arg4)
         
-        if event ~= "UNIT_SPELLCAST_SUCCEEDED" then
-            debugMsg(event)
+        if GC_Debug and event ~= "UNIT_SPELLCAST_SUCCEEDED" then
+            debugMsg("event")
+            if arg1 then
+                print("- arg1: "..tostring(arg1))
+            end
+            if arg2 then
+                print("- arg2: "..tostring(arg2))
+            end
+            if arg3 then
+                print("- arg3: "..tostring(arg3))
+            end
+            if arg4 then
+                print("- arg4: "..tostring(arg4))
+            end
         end
 
         if event == "PLAYER_LOGIN" then
@@ -549,7 +556,6 @@ eventFrame:SetScript(
             f:SetWidth(GC_Settings.width)
             f:SetHeight(GC_Settings.height)
             print("GuideCreator Loaded")
-            loadtime = GetTime()
 
         elseif event == "PLAYER_ENTERING_WORLD" then
             onFly = UnitOnTaxi("player")
@@ -573,7 +579,7 @@ eventFrame:SetScript(
             end
 
         elseif event == "UI_INFO_MESSAGE" then
-            if arg1 == ERR_NEWTAXIPATH then
+            if arg2 == ERR_NEWTAXIPATH then
                 FlightPath()
             end
 
@@ -585,10 +591,12 @@ eventFrame:SetScript(
             Cname = C_QuestLog.GetQuestInfo(CquestId)
 
         elseif event == "QUEST_ACCEPTED" then
-            Cname = C_QuestLog.GetQuestInfo(CquestId)
-            questAccept(CquestId, Cname)
-            CquestId = nil
-            Cname = nil
+            if CquestId then
+                Cname = C_QuestLog.GetQuestInfo(CquestId)
+                questAccept(CquestId, Cname)
+                CquestId = nil
+                Cname = nil
+            end
 
         elseif event == "QUEST_TURNED_IN" then
             if Cname == nil then
@@ -621,12 +629,12 @@ eventFrame:SetScript(
                     end
                 end
             end
-            QuestLog = questData
+            QuestLog = getQuestData()
         end
     end
 )
 
-function GC_NPCnames()
+local function GC_NPCnames()
     if not GC_Settings["NPCnames"] then
         GC_Settings["NPCnames"] = true
         print("NPC names enabled")
@@ -636,17 +644,25 @@ function GC_NPCnames()
     end
 end
 
-function GC_ListGuides()
-    print("Saved Guides:")
+local function GC_ListGuides()
+    print("Saved Guides (|cff00ff00current|cffffffff):")
     for guide, v in pairs(GC_GuideList) do
-        print(guide)
+        if guide == GC_Settings["CurrentGuide"] then
+            print("- |cff00ff00"..guide)
+        else
+            print("- "..guide)
+        end
     end
 end
 
-function GC_DeleteGuide(arg)
+local function GC_DeleteGuide(arg)
     if GC_GuideList[arg] then
         GC_GuideList[arg] = nil
         print("Guide " .. "[" .. arg .. "] was successfully removed")
+        if GC_Settings["CurrentGuide"] == arg then
+            print("[|cffffff00Warning|cffffffff] Deleted Guide was the current Guide, set new current Guide name.")
+            StaticPopup_Show("GC_CurrentGuide")
+        end
     else
         print("Error: Guide not found")
     end
@@ -794,11 +810,11 @@ function ScrollDown()
     f.SF:SetVerticalScroll(f.SF:GetVerticalScrollRange())
 end
 
-function GC_Editor()
+local function GC_Editor()
     f:Show()
 end
 
-function GC_Goto(arg)
+local function GC_Goto(arg)
     if arg then
         addGotoStep(arg)
     else
@@ -806,7 +822,7 @@ function GC_Goto(arg)
     end
 end
 
-function GC_CurrentGuide(arg)
+local function GC_CurrentGuide(arg)
     if arg then
         updateGuideName(arg)
     else
@@ -823,7 +839,9 @@ local function addGotoStep(arg)
         if GC_Settings["syntax"] == "Guidelime" then
             step = format("\n[G%.1f,%.1f%s]%s", x, y, mapName, arg)
         elseif GC_Settings["syntax"] == "Zygor" then
-            step = string.format("\nstep\n    goto %s,%.1f,%.1f\n    %s", mapName, x, y, arg)
+            step = string.format("\nstep\n    goto %s %.1f,%.1f\n    %s", mapName, x, y, arg)
+        elseif GC_Settings["syntax"] == "RXP" then
+            step = string.format("\nstep\n    .goto %s,%.1f,%.1f\n    >>%s", mapName, x, y, arg)
         end
         updateGuide(step)
     end
@@ -835,8 +853,6 @@ local function updateGuideName(name)
     elseif not GC_Settings["CurrentGuide"] or GC_Settings["CurrentGuide"] == "" then
         GC_Settings["CurrentGuide"] = "New Guide"
     end
-    
-    debugMsg("Guide Name: "..GC_Settings["CurrentGuide"])
 
     if not GC_GuideList[GC_Settings["CurrentGuide"]] then
         GC_GuideList[GC_Settings["CurrentGuide"]] = ""
@@ -852,12 +868,10 @@ StaticPopupDialogs["GC_GoTo"] = {
         getglobal(self:GetName() .. "EditBox"):SetText("")
     end,
     OnAccept = function(self)
-        debugMsg(getglobal(self:GetName() .. "EditBox"):GetText())
         addGotoStep(getglobal(self:GetName() .. "EditBox"):GetText())
         self:Hide()
     end,
     EditBoxOnEnterPressed = function(self)
-        debugMsg(self:GetText())
         addGotoStep(self:GetText())
         self:GetParent():Hide()
     end,
@@ -908,7 +922,7 @@ local commandList = {
     },
     ["current"] = {
         GC_CurrentGuide,
-        SLASH_GUIDE1 .. " current GuideName | Sets the current working guide"
+        SLASH_GUIDE1 .. " current GuideName | Sets the current working guide (if no GuideName is specified, a prompt will open)"
     },
     ["list"] = {
         GC_ListGuides,
@@ -932,7 +946,7 @@ local commandList = {
     }
 }
 
-function GC_chelp()
+local function GC_chelp()
     local s = ""
     for cmd, v in pairs(commandList) do
         s = format("%s\n`%s %s` %s", s, SLASH_GUIDE1, cmd, v[2])
@@ -991,7 +1005,7 @@ local function ClearAllMarks()
     frameCounter = 0
 end
 
-function WPUpdate()
+local function WPUpdate()
     local mapName = GetMapInfo()
     for _, f in pairs(WPList) do
         if mapName == f.map then
@@ -1002,7 +1016,7 @@ function WPUpdate()
     end
 end
 
-function CreateWPframe(text, x, y, map)
+local function CreateWPframe(text, x, y, map)
     if not name then
         name = "GFP" .. tostring(frameCounter)
     end
@@ -1042,7 +1056,7 @@ end
 
 local L = { "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z" }
 
-function GenerateWaypoints(guide, start, finish)
+local function GenerateWaypoints(guide, start, finish)
     ClearAllMarks()
     local gLine = ""
     local sx, si = 1, 0
