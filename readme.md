@@ -2,11 +2,15 @@
 
 ## Overview
 
-This is an addon for TBC WoW (2.4.3) that assists in the creation of in-game leveling guides by auto generating a Guidelime text string every time you accept, turn in or complete quest objectives.
+This is an addon for classic WoW and classic TBC that assists in the creation of in-game leveling guides by auto generating a Guidelime text string every time you accept, turn in or complete quest objectives.
 
 ## Limitations
 
 You need an english client for it to work, this addon relies on parsing text data to detect quest activity.
+
+## Install
+
+Download the .zip, locate your World of Warcraft folder and extract it in `_classic_beta_\Interface\AddOns` folder. Rename the `GuideCreator-classic-tbc` folder to `GuideCreator`.
 
 ## Commands
 
