@@ -11,22 +11,28 @@ eventFrame:RegisterEvent("QUEST_ACCEPTED")
 eventFrame:RegisterEvent("HEARTHSTONE_BOUND")
 eventFrame:RegisterEvent("QUEST_DETAIL")
 eventFrame:RegisterEvent("QUEST_COMPLETE")
+eventFrame:RegisterEvent("UI_INFO_MESSAGE")
+eventFrame:RegisterEvent("PLAYER_CONTROL_LOST")
+eventFrame:RegisterEvent("PLAYER_CONTROL_GAINED")
+eventFrame:RegisterEvent("UNIT_SPELLCAST_SUCCEEDED")
 
 GC_Debug = false
 
-local function GetMapInfo()
-    local id = C_Map.GetBestMapForUnit("player")
-    return C_Map.GetMapInfo(id).name
-end
-local function GetPlayerMapPosition(unitToken)
-    local pos = C_Map.GetPlayerMapPosition(C_Map.GetBestMapForUnit(unitToken), unitToken)
-    return pos.x, pos.y
-end
-
 local UpdateWindow, ScrollDown
 local questObjectiveComplete
-local questFinished = 0.0
 local questTurnIn, questAccept
+local lastx, lasty = -10.0, -10.0
+local lastMap = ""
+local questEvent = ""
+local lastId
+local lastObj
+local lastUnique
+local previousQuestNPC = nil
+local questNPC = nil
+local previousQuest
+local onFly = false
+local taxiTime = 0
+local QuestLog
 
 local playerFaction = ""
 local _, race = UnitRace("player")
@@ -37,51 +43,42 @@ else
     playerFaction = "Horde"
 end
 
-function GC_init()
+hooksecurefunc("TakeTaxiNode", function(i)
+    taxiTime = GetTime()
+end)
+
+local function GetMapInfo()
+    local id = C_Map.GetBestMapForUnit("player")
+    return C_Map.GetMapInfo(id).name
+end
+
+local function GetPlayerMapPosition(unitToken)
+    local pos = C_Map.GetPlayerMapPosition(C_Map.GetBestMapForUnit(unitToken), unitToken)
+    return pos.x, pos.y
+end
+
+local function GC_init()
     if not GC_Settings then
         GC_Settings = {}
         GC_Settings["syntax"] = "RXP"
         GC_Settings["mapCoords"] = 0
-        GC_Settings["CurrentGuide"] = "New Guide"
         GC_Settings["NPCnames"] = false
-    else
-        GC_Settings["syntax"] = "Zygor"
     end
+
     if not GC_GuideList then
         GC_GuideList = {}
     end
-    if UnitLevel("player") == 1 and UnitXP("player") == 0 and GetNumQuestLogEntries() == 0 then
-        GC_Settings["CurrentGuide"] = UnitName("player")
-        GC_GuideList[GC_Settings["CurrentGuide"]] = ""
-    end
-end
-
-local function pguide(...)
-    local args = {...}
-    local output = ""
-    for _, arg in ipairs(args) do
-        if output ~= "" then
-            output = output .. "    "
-        end
-        if arg == nil then
-            arg = ":nil"
-        elseif arg == true then
-            arg = ":true"
-        elseif arg == false then
-            arg = ":false"
-        end
-        output = output .. tostring(arg)
-    end
-    GC_GuideList[GC_Settings["CurrentGuide"]] = GC_GuideList[GC_Settings["CurrentGuide"]] .. "\n" .. output
+    
+    StaticPopup_Show("GC_CurrentGuide")
 end
 
 local function debugMsg(arg)
     if GC_Debug then
-        print("[|cffff0000GuideCreatorDebug|cffffffff] "..arg)
+        print("[|cffff0000GC_Debug|cffffffff] "..arg)
     end
 end
 
-function GC_MapCoords(arg)
+local function GC_MapCoords(arg)
     if arg then
         arg = tostring(arg)
     end
@@ -113,16 +110,7 @@ function UpdateWindow()
     ScrollDown()
 end
 
-local function IsQuestComplete(quest)
-    for i = 1, GetNumQuestLogEntries() do
-        local questTitle, level, questTag, suggestedGroup, isHeader, isCollapsed, isComplete = GetQuestLogTitle(i)
-        if isComplete and (questTitle == quest) then
-            return true
-        end
-    end
-end
-
-function getQuestData()
+local function getQuestData()
     local questData = {}
     local questIndex = {}
     local n = GetNumQuestLogEntries()
@@ -130,7 +118,13 @@ function getQuestData()
     for i = 1, n do
         local title, level, suggestedGroup, isHeader, isCollapsed, isComplete, frequency, questID = GetQuestLogTitle(i)
         if questID and GetNumQuestLeaderBoards(i) > 0 then
-            questData[questID] = C_QuestLog.GetQuestObjectives(questID)
+            local qo = C_QuestLog.GetQuestObjectives(questID)
+            for key, value in pairs(qo) do
+                if QuestLog and QuestLog[questID] and QuestLog[questID][key] and QuestLog[questID][key].finished ~= value.finished then
+                    value.finished = true
+                end
+            end
+            questData[questID] = qo
             questIndex[questID] = i
         end
     end
@@ -145,20 +139,14 @@ local function updateGuide(step)
         GC_GuideList[GC_Settings["CurrentGuide"]] = ""
     end
     GC_GuideList[GC_Settings["CurrentGuide"]] = GC_GuideList[GC_Settings["CurrentGuide"]] .. step
-    print("Step added:" .. step)
+
+    local printableStep = step:gsub("\nstep\n", "")
+    print("[|cff00ff00Step|cffffffff]" .. printableStep)
     UpdateWindow()
 end
 
-local lastx, lasty = -10.0, -10.0
-local lastMap = ""
-local questEvent = ""
-local lastStep
-local lastId
-local lastObj
-local lastUnique
-
 function questObjectiveComplete(id, name, obj, text, type)
-    debugMsg(format("%d-%s-%s-%s-%s", id, name, obj, text, type))
+    debugMsg(format("id:%d-name:%s-obj:%s-text:%s-type:%s", id, name, obj, text, type))
 
     local mapName = GetMapInfo()
     local x, y = GetPlayerMapPosition("player")
@@ -194,10 +182,16 @@ function questObjectiveComplete(id, name, obj, text, type)
         elseif type == "object" then
             _, _, item, n = strfind(text, "(.*)%:%s%d*/(%d*)")
             n = tonumber(n)
-            if n > 1 then
-                step = format("[QC%d,%d-]%s (x%d)", id, obj, item, n)
+
+            if item then
+                if n > 1 then
+                    step = format("[QC%d,%d-]%s (x%d)", id, obj, item, n)
+                else
+                    step = format("[QC%d,%d-]%s", id, obj, item)
+                end
             else
-                step = format("[QC%d,%d-]%s", id, obj, item)
+                n = 1
+                step = format("[QC%d,%d-]%s", id, obj, text)
             end
         end
         if GC_Settings["mapCoords"] > 0 then
@@ -237,7 +231,12 @@ function questObjectiveComplete(id, name, obj, text, type)
         elseif type == "object" then
             _, _, item, n = strfind(text, "(.*)%:%s%d*/(%d*)")
             n = tonumber(n)
-            step = string.format(".get %d %s|q %d/%d", n, item, id, obj)
+            if item then
+                step = string.format(".get %d %s|q %d/%d", n, item, id, obj)
+            else
+                n = 1
+                step = string.format(".goal %d %s|q %d/%d", n, text, id, obj)
+            end
         end
 
         local distance = (lastx - x) ^ 2 + (lasty - y) ^ 2
@@ -247,7 +246,7 @@ function questObjectiveComplete(id, name, obj, text, type)
             step = "\n    " .. step
         else
             if mapName then
-                step = string.format("\nstep\n    goto %s,%.1f,%.1f\n    %s", mapName, x, y, step)
+                step = string.format("\nstep\n    .goto %s,%.1f,%.1f\n    %s", mapName, x, y, step)
             end
         end
         lastUnique = isUnique
@@ -274,9 +273,14 @@ function questObjectiveComplete(id, name, obj, text, type)
                 step = string.format(".complete %d,%d --%s (%d)", id, obj,text,n)
             end
         elseif type == "object" then
-            item, n = string.match(text, "(.*)%:%s%d*/(%d*)")
+            _, _, item, n = strfind(text, "(.*)%:%s%d*/(%d*)")
             n = tonumber(n)
-            step = string.format(".complete %d,%d --%s (%d)", id, obj,item,n)
+            if item then
+                step = string.format(".complete %d,%d --%s (%d)", id, obj,item,n)
+            else
+                n = 1
+                step = string.format(".complete %d,%d --%s (%d)", id, obj,text,n)
+            end
         end
 
         local distance = (lastx - x) ^ 2 + (lasty - y) ^ 2
@@ -295,7 +299,10 @@ function questObjectiveComplete(id, name, obj, text, type)
     previousQuestNPC = nil
     previousQuest = id
     questEvent = "complete"
-    if not skip or (lastObj == obj and lastId == id) then
+    if lastObj ~= obj or lastId ~= id then
+        if QuestLog and QuestLog[id] and  QuestLog[id][obj] then
+            QuestLog[id][obj]["finished"] = true
+        end
         updateGuide(step)
     end
     lastId = id
@@ -305,13 +312,7 @@ function questObjectiveComplete(id, name, obj, text, type)
     lastMap = mapName
 end
 
-local loadtime = 0
-
-local previousQuestNPC = nil
-local questNPC = nil
-
-local function questTurnIn(id, name)
-    debugMsg("turnin", questNPC)
+function questTurnIn(id, name)
     if previousQuest then
         previousQuest = nil
         lastx = -10
@@ -341,7 +342,7 @@ local function questTurnIn(id, name)
         y = y * 100
         local distance = (lastx - x) ^ 2 + (lasty - y) ^ 2
         if not (mapName == lastMap and (lastx > 0 and distance < 0.03)) then
-            step = string.format("\nstep\n    goto %s,%.1f,%.1f\n", mapName, x, y)
+            step = string.format("\nstep\n    .goto %s,%.1f,%.1f\n", mapName, x, y)
             if GC_Settings["NPCnames"] and questNPC and previousQuestNPC ~= questNPC then
                 step = step .. "    Speak to " .. questNPC .. "\n"
             end
@@ -367,7 +368,8 @@ local function questTurnIn(id, name)
     lastx = x
     lasty = y
 end
-local function questAccept(id, name)
+
+function questAccept(id, name)
     if previousQuest then
         previousQuest = nil
         lastx = -10
@@ -398,7 +400,7 @@ local function questAccept(id, name)
         local distance = (lastx - x) ^ 2 + (lasty - y) ^ 2
 
         if not (mapName == lastMap and (lastx > 0 and distance < 0.03)) then
-            step = string.format("\nstep\n    goto %s,%.1f,%.1f\n", mapName, x, y)
+            step = string.format("\nstep\n    .goto %s,%.1f,%.1f\n", mapName, x, y)
             if GC_Settings["NPCnames"] and questNPC and previousQuestNPC ~= questNPC then
                 step = step .. "    Speak to " .. questNPC .. "\n"
             end
@@ -440,6 +442,40 @@ local function questAccept(id, name)
     lastMap = mapName
 end
 
+local function SetHearthstone()
+    local step = "\n"
+    local mapName = GetMapInfo()
+    local subzone = GetMinimapZoneText()
+    local x, y = GetPlayerMapPosition("player")
+    x = x * 100
+    y = y * 100
+    if GC_Settings["syntax"] == "Guidelime" then
+        local x, y = GetPlayerMapPosition("player")
+        step = format("\n[G%.1f,%.1f%s][S]Set your Hearthstone to %s", x, y, mapName, subzone)
+    elseif GC_Settings["syntax"] == "Zygor" then
+        step = string.format("\nstep\n   .home %s|.goto %.1f,%.1f", subzone, x, y)
+    elseif GC_Settings["syntax"] == "RXP" then
+        step = string.format("\nstep\n    .goto %s,%.1f,%.1f\n    .home >>Set your Hearthstone to %s", mapName, x, y, subzone)
+    end
+    updateGuide(step)
+end
+
+local function UseHearthstone()
+    local step = "\n"
+    local mapName = GetMapInfo()
+    local home = GetBindLocation()
+
+    if GC_Settings["syntax"] == "Guidelime" then
+        local x, y = GetPlayerMapPosition("player")
+        step = format("\nHearth to [H %s]", x, y, home)
+    elseif GC_Settings["syntax"] == "Zygor" then
+        step = string.format("\nstep\n    .hearth %s", home)
+    elseif GC_Settings["syntax"] == "RXP" then
+        step = string.format("\nstep\n    .hearth >>Use your Hearthstone to %s", home)
+    end
+    updateGuide(step)
+end
+
 local function FlightPath()
     local step = "\n"
     local mapName = GetMapInfo()
@@ -451,38 +487,68 @@ local function FlightPath()
         local x, y = GetPlayerMapPosition("player")
         step = format("\n[G%.1f,%.1f%s]Get the [P %s] flight path", x, y, mapName, subzone)
     elseif GC_Settings["syntax"] == "Zygor" then
-        step = string.format("\nstep\n    goto %s,%.1f,%.1f\n    fpath %s", mapName, x, y, subzone)
+        step = string.format("\nstep\n  Learn new fligh tpath|.goto %s,%.1f,%.1f", subzone, x, y)
     elseif GC_Settings["syntax"] == "RXP" then
         step = string.format("\nstep\n    .goto %s,%.1f,%.1f\n    .fp >>Get the %s Flight Path", mapName, x, y, subzone)
     end
     updateGuide(step)
 end
 
-local function SetHearthstone(home)
-    local step = "\n"
+local function TakeFlightPath()
     local mapName = GetMapInfo()
-    if not home then
-        home = GetMinimapZoneText()
-    end
     local x, y = GetPlayerMapPosition("player")
     x = x * 100
     y = y * 100
+
     if GC_Settings["syntax"] == "Guidelime" then
         local x, y = GetPlayerMapPosition("player")
-        step = format("\n[G%.1f,%.1f%s][S]Set your Hearthstone to %s", x, y, mapName, home)
+        step = format("\n[G%.1f,%.1f%s]Talk to the flight Master", x, y)
     elseif GC_Settings["syntax"] == "Zygor" then
-        step = string.format("\nstep\n    goto %s,%.1f,%.1f\n    home %s", mapName, x, y, home)
+        step = string.format("\nstep\n  Talk to the flight master|.goto %.1f,%.1f", x, y)
     elseif GC_Settings["syntax"] == "RXP" then
-        step = string.format("\nstep\n    .goto %s,%.1f,%.1f\n    .home >>Set your Hearthstone to %s", mapName, x, y, home)
+        step = string.format("\nstep\n    .goto %s,%.1f,%.1f >>Talk to the flight master", mapName, x, y)
     end
     updateGuide(step)
 end
 
-local previousQuest
+local function LandFlightPath()
+    local mapName = GetMapInfo()
+    local subzone = GetMinimapZoneText()
+    local x, y = GetPlayerMapPosition("player")
+    x = x * 100
+    y = y * 100
+
+    if GC_Settings["syntax"] == "Guidelime" then
+        step = format("\nFly to [F %s]", subzone)
+    elseif GC_Settings["syntax"] == "Zygor" then
+        step = string.format("\nstep\n    .fpath %s|.goto %.1f,%.1f", subzone, x, y)
+    elseif GC_Settings["syntax"] == "RXP" then
+        step = string.format("\nstep\n    .fly %s,%.1f,%.1f >>Take the %s Flight Path", mapName, x, y, subzone)
+    end
+    
+    updateGuide(step)
+end
 
 eventFrame:SetScript(
     "OnEvent",
     function(self, event, arg1, arg2, arg3, arg4)
+        
+        if GC_Debug and event ~= "UNIT_SPELLCAST_SUCCEEDED" then
+            debugMsg(event)
+            if arg1 then
+                print("- arg1: "..tostring(arg1))
+            end
+            if arg2 then
+                print("- arg2: "..tostring(arg2))
+            end
+            if arg3 then
+                print("- arg3: "..tostring(arg3))
+            end
+            if arg4 then
+                print("- arg4: "..tostring(arg4))
+            end
+        end
+
         if event == "PLAYER_LOGIN" then
             GC_init()
             GC_Settings.width = GC_Settings.width or 600
@@ -490,45 +556,62 @@ eventFrame:SetScript(
             f:SetWidth(GC_Settings.width)
             f:SetHeight(GC_Settings.height)
             print("GuideCreator Loaded")
-            loadtime = GetTime()
+
         elseif event == "PLAYER_ENTERING_WORLD" then
+            onFly = UnitOnTaxi("player")
             QuestLog = getQuestData()
-        end
 
-        debugMsg(event)
-
-        if event == "UI_INFO_MESSAGE" then
-            debugMsg(arg1)
-            if arg1 == ERR_NEWTAXIPATH then
-                FlightPath()
-            else
-                return
+        elseif event == "UNIT_SPELLCAST_SUCCEEDED" then
+            if  arg1 == "player" and arg3 == 8690 then
+                UseHearthstone()
             end
+
+        elseif event == "PLAYER_CONTROL_LOST" then
+            if GetTime() - taxiTime < 1 then
+                TakeFlightPath()
+                onFly = true
+            end
+
+        elseif event == "PLAYER_CONTROL_GAINED" then
+            if onFly then
+                LandFlightPath()
+                onFly = false
+            end
+
+        elseif event == "UI_INFO_MESSAGE" then
+            if arg2 == ERR_NEWTAXIPATH then
+                FlightPath()
+            end
+
         elseif event == "HEARTHSTONE_BOUND" then
-            SetHearthstone(home)
+            SetHearthstone()
+
         elseif event == "QUEST_DETAIL" or event == "QUEST_COMPLETE" then
             CquestId = GetQuestID()
             Cname = C_QuestLog.GetQuestInfo(CquestId)
+
         elseif event == "QUEST_ACCEPTED" then
-            Cname = C_QuestLog.GetQuestInfo(CquestId)
-            questAccept(CquestId, Cname)
-            CquestId = nil
-            Cname = nil
+            if CquestId then
+                Cname = C_QuestLog.GetQuestInfo(CquestId)
+                questAccept(CquestId, Cname)
+                CquestId = nil
+                Cname = nil
+            end
+
         elseif event == "QUEST_TURNED_IN" then
-            debugMsg(event)
             if Cname == nil then
                 Cname = "*undefined*"
             end
-            debugMsg("{ CquestId : "..CquestId..", name: "..Cname.."}")
             questTurnIn(CquestId, Cname)
-
             if not UnitPlayerControlled("target") then
                 questNPC = UnitName("target")
             end
+
         elseif event == "QUEST_DETAIL" then
             if not UnitPlayerControlled("target") then
                 questNPC = UnitName("target")
             end
+
         elseif event == "QUEST_LOG_UPDATE" then
             local questData, questIndex = getQuestData()
 
@@ -546,41 +629,12 @@ eventFrame:SetScript(
                     end
                 end
             end
-
-            QuestLog = questData
-        end
-
-        if Debug == true then
-            lastevent = event
-            larg1 = arg1
-            larg2 = arg2
-            if
-                not ((event == "WORLD_MAP_UPDATE") or (event == "UPDATE_SHAPESHIFT_FORM") or
-                    string.find(event, "LIST_UPDATE") or
-                    string.find(event, "COMBAT_LOG") or
-                    string.find(event, "CHAT") or
-                    string.find(event, "CHANNEL"))
-             then
-                local a = GetTime() .. " " .. event .. ":"
-                if arg1 ~= nil then
-                    a = a .. "/" .. tostring(arg1)
-                end
-                if arg2 ~= nil then
-                    a = a .. "/" .. tostring(arg2)
-                end
-                if arg3 ~= nil then
-                    a = a .. "/" .. tostring(arg3)
-                end
-                if arg4 ~= nil then
-                    a = a .. "/" .. tostring(arg4)
-                end
-                DEFAULT_CHAT_FRAME:AddMessage(a)
-            end
+            QuestLog = getQuestData()
         end
     end
 )
 
-function GC_NPCnames()
+local function GC_NPCnames()
     if not GC_Settings["NPCnames"] then
         GC_Settings["NPCnames"] = true
         print("NPC names enabled")
@@ -590,24 +644,25 @@ function GC_NPCnames()
     end
 end
 
-function GC_CurrentGuide(arg)
-    if arg then
-        GC_Settings["CurrentGuide"] = arg
-    end
-    print("Current Guide: " .. tostring(GC_Settings["CurrentGuide"]))
-end
-
-function GC_ListGuides()
-    print("Saved Guides:")
+local function GC_ListGuides()
+    print("Saved Guides (|cff00ff00current|cffffffff):")
     for guide, v in pairs(GC_GuideList) do
-        print(guide)
+        if guide == GC_Settings["CurrentGuide"] then
+            print("- |cff00ff00"..guide)
+        else
+            print("- "..guide)
+        end
     end
 end
 
-function GC_DeleteGuide(arg)
+local function GC_DeleteGuide(arg)
     if GC_GuideList[arg] then
         GC_GuideList[arg] = nil
         print("Guide " .. "[" .. arg .. "] was successfully removed")
+        if GC_Settings["CurrentGuide"] == arg then
+            print("[|cffffff00Warning|cffffffff] Deleted Guide was the current Guide, set new current Guide name.")
+            StaticPopup_Show("GC_CurrentGuide")
+        end
     else
         print("Error: Guide not found")
     end
@@ -755,15 +810,23 @@ function ScrollDown()
     f.SF:SetVerticalScroll(f.SF:GetVerticalScrollRange())
 end
 
-function GC_Editor()
+local function GC_Editor()
     f:Show()
 end
 
-function GC_Goto(arg)
+local function GC_Goto(arg)
     if arg then
         addGotoStep(arg)
     else
         StaticPopup_Show("GC_GoTo")
+    end
+end
+
+local function GC_CurrentGuide(arg)
+    if arg then
+        updateGuideName(arg)
+    else
+        StaticPopup_Show("GC_CurrentGuide")
     end
 end
 
@@ -776,9 +839,23 @@ local function addGotoStep(arg)
         if GC_Settings["syntax"] == "Guidelime" then
             step = format("\n[G%.1f,%.1f%s]%s", x, y, mapName, arg)
         elseif GC_Settings["syntax"] == "Zygor" then
-            step = string.format("\nstep\n    goto %s,%.1f,%.1f\n    %s", mapName, x, y, arg)
+            step = string.format("\nstep\n    .goto %s,%.1f,%.1f\n    %s", mapName, x, y, arg)
+        elseif GC_Settings["syntax"] == "RXP" then
+            step = string.format("\nstep\n    .goto %s,%.1f,%.1f\n    >>%s", mapName, x, y, arg)
         end
         updateGuide(step)
+    end
+end
+
+local function updateGuideName(name)
+    if name and name ~= "" then
+        GC_Settings["CurrentGuide"] = name
+    elseif not GC_Settings["CurrentGuide"] or GC_Settings["CurrentGuide"] == "" then
+        GC_Settings["CurrentGuide"] = "New Guide"
+    end
+
+    if not GC_GuideList[GC_Settings["CurrentGuide"]] then
+        GC_GuideList[GC_Settings["CurrentGuide"]] = ""
     end
 end
 
@@ -787,21 +864,48 @@ StaticPopupDialogs["GC_GoTo"] = {
     hasEditBox = 1,
     button1 = "Ok",
     button2 = "Cancel",
-    OnShow = function()
-        getglobal(this:GetName() .. "EditBox"):SetText("")
+    OnShow = function(self)
+        getglobal(self:GetName() .. "EditBox"):SetText("")
     end,
-    OnAccept = function()
-        local editBox = getglobal(this:GetParent():GetName() .. "EditBox")
-        this:Hide()
-        addGotoStep(editBox:GetText())
+    OnAccept = function(self)
+        addGotoStep(getglobal(self:GetName() .. "EditBox"):GetText())
+        self:Hide()
     end,
-    EditBoxOnEnterPressed = function()
-        local editBox = getglobal(this:GetParent():GetName() .. "EditBox")
-        this:GetParent():Hide()
-        addGotoStep(this:GetText())
+    EditBoxOnEnterPressed = function(self)
+        addGotoStep(self:GetText())
+        self:GetParent():Hide()
     end,
-    EditBoxOnEscapePressed = function()
-        this:GetParent():Hide()
+    EditBoxOnEscapePressed = function(self)
+        self:GetParent():Hide()
+    end,
+    timeout = 0,
+    whileDead = 1,
+    hideOnEscape = 1
+}
+
+StaticPopupDialogs["GC_CurrentGuide"] = {
+    text = "Enter Current Guide Title:",
+    hasEditBox = 1,
+    button1 = "Ok",
+    button2 = "Cancel",
+    OnShow = function(self)
+        if GC_Settings["CurrentGuide"] and GC_Settings["CurrentGuide"] ~= "" then
+            getglobal(self:GetName() .. "EditBox"):SetText(GC_Settings["CurrentGuide"])
+        else
+            getglobal(self:GetName() .. "EditBox"):SetText("New Guide")
+        end
+    end,
+    OnAccept = function(self)
+        updateGuideName(getglobal(self:GetName() .. "EditBox"):GetText())
+        self:Hide()
+    end,
+    EditBoxOnEnterPressed = function(self)
+        updateGuideName(getglobal(self:GetParent():GetName() .. "EditBox"):GetText())
+        self:GetParent():Hide()
+    end,
+    EditBoxOnEscapePressed = function(self)
+        updateGuideName("")
+        self:GetParent():Hide()
     end,
     timeout = 0,
     whileDead = 1,
@@ -809,29 +913,40 @@ StaticPopupDialogs["GC_GoTo"] = {
 }
 
 SLASH_GUIDE1 = "/guide"
+SLASH_GUIDE2 = "/guidecreator"
 
 local commandList = {
-    ["npcnames"] = {GC_NPCnames, SLASH_GUIDE1 .. " npcnames | Show NPC names upon accepting or turning in a quest"},
-    ["current"] = {GC_CurrentGuide, SLASH_GUIDE1 .. " current GuideName | Sets the current working guide"},
-    ["list"] = {GC_ListGuides, SLASH_GUIDE1 .. " list | Lists all guides saved in memory"},
+    ["npcnames"] = {
+        GC_NPCnames,
+        SLASH_GUIDE1 .. " npcnames | Show NPC names upon accepting or turning in a quest"
+    },
+    ["current"] = {
+        GC_CurrentGuide,
+        SLASH_GUIDE1 .. " current GuideName | Sets the current working guide (if no GuideName is specified, a prompt will open)"
+    },
+    ["list"] = {
+        GC_ListGuides,
+        SLASH_GUIDE1 .. " list | Lists all guides saved in memory"
+    },
     ["delete"] = {
         GC_DeleteGuide,
         SLASH_GUIDE1 .. " delete GuideName | Delete the specified guide, erasing its contents from memory"
     },
     ["editor"] = {
         GC_Editor,
-        SLASH_GUIDE1 ..
-            " editor | Opens the text editor where you can edit each indivdual step or copy them over to a proper text editor, you can use alt+click to resize the window"
+        SLASH_GUIDE1 .. " editor | Opens the text editor where you can edit each indivdual step or copy them over to a proper text editor, you can use alt+click to resize the window"
     },
     ["mapcoords"] = {
         GC_MapCoords,
-        SLASH_GUIDE1 ..
-            " mapcoords n | Set n to -1 to disable map coordinates generation and use Guidelime's database instead, set it to 0 to only generate map coordinates upon quest accept/turn in or set it to 1 enable waypoint generation upon completing quest objectives"
+        SLASH_GUIDE1 .. " mapcoords n | Set n to -1 to disable map coordinates generation and use Guidelime's database instead, set it to 0 to only generate map coordinates upon quest accept/turn in or set it to 1 enable waypoint generation upon completing quest objectives"
     },
-    ["goto"] = {GC_Goto, SLASH_GUIDE1 .. " goto | Generate a goto step at your current location"}
+    ["goto"] = {
+        GC_Goto,
+        SLASH_GUIDE1 .. " goto | Generate a goto step at your current location"
+    }
 }
 
-function GC_chelp()
+local function GC_chelp()
     local s = ""
     for cmd, v in pairs(commandList) do
         s = format("%s\n`%s %s` %s", s, SLASH_GUIDE1, cmd, v[2])
@@ -840,9 +955,12 @@ function GC_chelp()
 end
 
 SlashCmdList["GUIDE"] = function(msg)
-    _, _, cmd, arg = strfind(msg, "%s?(%w+)%s?(.*)")
+    if msg and msg ~= "" then
+        _, _, cmd, arg = strfind(msg, "%s?(%w+)%s?(.*)")
+    else
+        cmd = "help"
+    end
 
-    debugMsg(cmd)
     if cmd then
         cmd = strlower(cmd)
     end
@@ -851,7 +969,7 @@ SlashCmdList["GUIDE"] = function(msg)
     end
 
     if cmd == "help" or not cmd then
-        local list = {"Command List:", "/guide help"}
+        local list = {"Command List:", SLASH_GUIDE1.." help"}
         for command, entry in pairs(commandList) do
             if arg == command then
                 print(entry[2])
@@ -887,7 +1005,7 @@ local function ClearAllMarks()
     frameCounter = 0
 end
 
-function WPUpdate()
+local function WPUpdate()
     local mapName = GetMapInfo()
     for _, f in pairs(WPList) do
         if mapName == f.map then
@@ -898,7 +1016,7 @@ function WPUpdate()
     end
 end
 
-function CreateWPframe(text, x, y, map)
+local function CreateWPframe(text, x, y, map)
     if not name then
         name = "GFP" .. tostring(frameCounter)
     end
@@ -938,7 +1056,7 @@ end
 
 local L = { "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z" }
 
-function GenerateWaypoints(guide, start, finish)
+local function GenerateWaypoints(guide, start, finish)
     ClearAllMarks()
     local gLine = ""
     local sx, si = 1, 0

@@ -8,6 +8,10 @@ This is an addon for TBC WoW (2.4.3) that assists in the creation of in-game lev
 
 You need an english client for it to work, this addon relies on parsing text data to detect quest activity.
 
+## Install
+
+Download the .zip, locate your World of Warcraft folder and extract it in `_classic_beta_\Interface\AddOns` folder. Rename the `GuideCreator-classic-tbc` folder to `GuideCreator`.
+
 ## Commands
 
 `/guide editor` Opens the text editor where you can edit each indivdual step or copy the text generated so you can move it over to a proper text editor, you can use alt+click to resize the window
