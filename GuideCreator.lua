@@ -205,37 +205,37 @@ function questObjectiveComplete(id, name, obj, text, type)
             _, _, monster, n = strfind(text, "(.*)%sslain%:%s%d+%/(%d+)")
 
             if monster then
-                step = string.format("kill %s %s |q %d/%d", n, monster, id, obj)
+                step = string.format(".kill %s %s|q %d/%d", n, monster, id, obj)
             else
                 _, _, monster, n = strfind(text, "(.*)%:%s%d+/(%d+)")
                 if n == "1" then
-                    step = string.format("goal %s |q %d/%d", monster, id, obj)
+                    step = string.format(".goal %s|q %d/%d", monster, id, obj)
                 else
-                    step = string.format("goal %s %s |q %d/%d", n, monster, id, obj)
+                    step = string.format(".goal %s %s|q %d/%d", n, monster, id, obj)
                 end
             end
             n = tonumber(n)
         elseif type == "item" then
             _, _, item, n = strfind(text, "(.*)%:%s%d*/(%d*)")
             n = tonumber(n)
-            step = string.format("get %d %s |q %d/%d", n, item, id, obj)
+            step = string.format(".get %d %s|q %d/%d", n, item, id, obj)
         elseif type == "event" then
             _, _, item, n = strfind(text, "(.*)%:%s%d+/(%d+)")
             if item then
-                step = string.format("goal %s %s |q %d/%d", n, text, id, obj)
+                step = string.format(".goal %s %s|q %d/%d", n, text, id, obj)
                 n = tonumber(n)
             else
                 n = 1
-                step = string.format("goal %s |q %d/%d", text, id, obj)
+                step = string.format(".goal %s|q %d/%d", text, id, obj)
             end
         elseif type == "object" then
             _, _, item, n = strfind(text, "(.*)%:%s%d*/(%d*)")
             n = tonumber(n)
             if item then
-                step = string.format("get %d %s |q %d/%d", n, item, id, obj)
+                step = string.format(".get %d %s|q %d/%d", n, item, id, obj)
             else
                 n = 1
-                step = string.format("goal %d %s |q %d/%d", n, text, id, obj)
+                step = string.format(".goal %d %s|q %d/%d", n, text, id, obj)
             end
         end
 
@@ -246,7 +246,7 @@ function questObjectiveComplete(id, name, obj, text, type)
             step = "\n    " .. step
         else
             if mapName then
-                step = string.format("\nstep\n    goto %s %.1f,%.1f\n    %s", mapName, x, y, step)
+                step = string.format("\nstep\n    .goto %s,%.1f,%.1f\n    %s", mapName, x, y, step)
             end
         end
         lastUnique = isUnique
@@ -342,12 +342,12 @@ function questTurnIn(id, name)
         y = y * 100
         local distance = (lastx - x) ^ 2 + (lasty - y) ^ 2
         if not (mapName == lastMap and (lastx > 0 and distance < 0.03)) then
-            step = string.format("\nstep\n    goto %s %.1f,%.1f\n", mapName, x, y)
+            step = string.format("\nstep\n    .goto %s,%.1f,%.1f\n", mapName, x, y)
             if GC_Settings["NPCnames"] and questNPC and previousQuestNPC ~= questNPC then
                 step = step .. "    Speak to " .. questNPC .. "\n"
             end
         end
-        step = string.format("%s    turnin %s##%d", step, name, id)
+        step = string.format("%s    .turnin %s##%d", step, name, id)
     elseif GC_Settings["syntax"] == "RXP" then
         x, y = GetPlayerMapPosition("player")
         x = x * 100
@@ -400,7 +400,7 @@ function questAccept(id, name)
         local distance = (lastx - x) ^ 2 + (lasty - y) ^ 2
 
         if not (mapName == lastMap and (lastx > 0 and distance < 0.03)) then
-            step = string.format("\nstep\n    goto %s %.1f,%.1f\n", mapName, x, y)
+            step = string.format("\nstep\n    .goto %s,%.1f,%.1f\n", mapName, x, y)
             if GC_Settings["NPCnames"] and questNPC and previousQuestNPC ~= questNPC then
                 step = step .. "    Speak to " .. questNPC .. "\n"
             end
@@ -409,7 +409,7 @@ function questAccept(id, name)
             name = "*undefined*"
         end
         if id ~= nil then
-            step = string.format("%s    accept %s##%d", step, name, id)
+            step = string.format("%s    .accept %s##%d", step, name, id)
         else
             print("error")
         end
@@ -453,7 +453,7 @@ local function SetHearthstone()
         local x, y = GetPlayerMapPosition("player")
         step = format("\n[G%.1f,%.1f%s][S]Set your Hearthstone to %s", x, y, mapName, subzone)
     elseif GC_Settings["syntax"] == "Zygor" then
-        step = string.format("\nstep\n   home %s |goto %.1f,%.1f", subzone, x, y)
+        step = string.format("\nstep\n   .home %s|.goto %.1f,%.1f", subzone, x, y)
     elseif GC_Settings["syntax"] == "RXP" then
         step = string.format("\nstep\n    .goto %s,%.1f,%.1f\n    .home >>Set your Hearthstone to %s", mapName, x, y, subzone)
     end
@@ -469,7 +469,7 @@ local function UseHearthstone()
         local x, y = GetPlayerMapPosition("player")
         step = format("\nHearth to [H %s]", x, y, home)
     elseif GC_Settings["syntax"] == "Zygor" then
-        step = string.format("\nstep\n    hearth %s", home)
+        step = string.format("\nstep\n    .hearth %s", home)
     elseif GC_Settings["syntax"] == "RXP" then
         step = string.format("\nstep\n    .hearth >>Use your Hearthstone to %s", home)
     end
@@ -487,7 +487,7 @@ local function FlightPath()
         local x, y = GetPlayerMapPosition("player")
         step = format("\n[G%.1f,%.1f%s]Get the [P %s] flight path", x, y, mapName, subzone)
     elseif GC_Settings["syntax"] == "Zygor" then
-        step = string.format("\nstep\n  Learn new fligh tpath |goto %s %.1f,%.1f", subzone, x, y)
+        step = string.format("\nstep\n  Learn new fligh tpath|.goto %s,%.1f,%.1f", subzone, x, y)
     elseif GC_Settings["syntax"] == "RXP" then
         step = string.format("\nstep\n    .goto %s,%.1f,%.1f\n    .fp >>Get the %s Flight Path", mapName, x, y, subzone)
     end
@@ -504,7 +504,7 @@ local function TakeFlightPath()
         local x, y = GetPlayerMapPosition("player")
         step = format("\n[G%.1f,%.1f%s]Talk to the flight Master", x, y)
     elseif GC_Settings["syntax"] == "Zygor" then
-        step = string.format("\nstep\n  Talk to the flight master |goto %.1f,%.1f", x, y)
+        step = string.format("\nstep\n  Talk to the flight master|.goto %.1f,%.1f", x, y)
     elseif GC_Settings["syntax"] == "RXP" then
         step = string.format("\nstep\n    .goto %s,%.1f,%.1f >>Talk to the flight master", mapName, x, y)
     end
@@ -521,7 +521,7 @@ local function LandFlightPath()
     if GC_Settings["syntax"] == "Guidelime" then
         step = format("\nFly to [F %s]", subzone)
     elseif GC_Settings["syntax"] == "Zygor" then
-        step = string.format("\nstep\n    fpath %s |goto %.1f,%.1f", subzone, x, y)
+        step = string.format("\nstep\n    .fpath %s|.goto %.1f,%.1f", subzone, x, y)
     elseif GC_Settings["syntax"] == "RXP" then
         step = string.format("\nstep\n    .fly %s,%.1f,%.1f >>Take the %s Flight Path", mapName, x, y, subzone)
     end
@@ -534,7 +534,7 @@ eventFrame:SetScript(
     function(self, event, arg1, arg2, arg3, arg4)
         
         if GC_Debug and event ~= "UNIT_SPELLCAST_SUCCEEDED" then
-            debugMsg("event")
+            debugMsg(event)
             if arg1 then
                 print("- arg1: "..tostring(arg1))
             end
@@ -839,7 +839,7 @@ local function addGotoStep(arg)
         if GC_Settings["syntax"] == "Guidelime" then
             step = format("\n[G%.1f,%.1f%s]%s", x, y, mapName, arg)
         elseif GC_Settings["syntax"] == "Zygor" then
-            step = string.format("\nstep\n    goto %s %.1f,%.1f\n    %s", mapName, x, y, arg)
+            step = string.format("\nstep\n    .goto %s,%.1f,%.1f\n    %s", mapName, x, y, arg)
         elseif GC_Settings["syntax"] == "RXP" then
             step = string.format("\nstep\n    .goto %s,%.1f,%.1f\n    >>%s", mapName, x, y, arg)
         end
