@@ -114,12 +114,10 @@ end
 function GC_init()
 	if not GC_Settings then 
 		GC_Settings = {} 
-		GC_Settings["syntax"] = "Zygor"
+		GC_Settings["syntax"] = "RXP"
 		GC_Settings["mapCoords"] = 0
 		GC_Settings["CurrentGuide"] = "New Guide"
 		GC_Settings["NPCnames"] = false
-	else
-		GC_Settings["syntax"] = "Zygor"
 	end
 	if not GC_GuideList then
 		GC_GuideList = {}
@@ -433,6 +431,50 @@ function questObjectiveComplete(id,name,obj,text,type)
 			--step = "\n"..step
 		end
 		lastUnique = isUnique
+	elseif GC_Settings["syntax"] == "RXP" then
+        if type == "monster" then
+            monster, n = string.match(text, "(.*)%sslain%:%s%d+%/(%d+)")
+
+            if not monster then
+                monster, n = string.match(text, "(.*)%:%s%d+/(%d+)")
+            end
+			step = string.format(".complete %d,%d --%s (%s)", id, obj, monster,n)
+            n = tonumber(n)
+        elseif type == "item" then
+            item, n = string.match(text, "(.*)%:%s%d*/(%d*)")
+            n = tonumber(n)
+            step = string.format(".complete %d,%d --%s (%d)",id, obj,item,n)
+        elseif type == "event" then
+            item, n = string.match(text, "(.*)%:%s%d+/(%d+)")
+            if item then
+                step = string.format(".complete %d,%d --%s (%s)", id, obj,text,n)
+                n = tonumber(n)
+            else
+                n = 1
+                step = string.format(".complete %d,%d --%s (%d)", id, obj,text,n)
+            end
+        elseif type == "object" then
+            _, _, item, n = strfind(text, "(.*)%:%s%d*/(%d*)")
+            n = tonumber(n)
+            if item then
+                step = string.format(".complete %d,%d --%s (%d)", id, obj,item,n)
+            else
+                n = 1
+                step = string.format(".complete %d,%d --%s (%d)", id, obj,text,n)
+            end
+        end
+
+        local distance = (lastx - x) ^ 2 + (lasty - y) ^ 2
+
+        local isUnique = n == 1
+        if (mapName == lastMap and (lastx > 0 and distance < 0.03)) then
+            step = "\n    " .. step
+        else
+            if mapName then
+                step = string.format("\nstep\n    .goto %s,%.1f,%.1f\n    %s", mapName, x, y, step)
+            end
+        end
+        lastUnique = isUnique
 	end
 	questNPC = nil
 	previousQuestNPC = nil
@@ -578,6 +620,18 @@ function questTurnIn(id,name)
 			end
 		end
 		step = string.format("%s    .turnin %s##%d",step,name,id)
+    elseif GC_Settings["syntax"] == "RXP" then
+        x, y = GetPlayerMapPosition("player")
+        x = x * 100
+        y = y * 100
+        local distance = (lastx - x) ^ 2 + (lasty - y) ^ 2
+        if not (mapName == lastMap and (lastx > 0 and distance < 0.03)) then
+            step = string.format("\nstep\n    .goto %s,%.1f,%.1f\n", mapName, x, y)
+            if GC_Settings["NPCnames"] and questNPC and previousQuestNPC ~= questNPC then
+                step = step .. "    >>Speak to " .. questNPC .. "\n"
+            end
+        end
+        step = string.format("%s    .turnin %d >>Turn in %s", step, id, name)
 	end
 	lastMap = mapName
 	previousQuestNPC = questNPC
@@ -626,6 +680,26 @@ function questAccept(id,name)
 			end
 		end
 		step = string.format("%s    .accept %s##%d",step,name,id)
+    elseif GC_Settings["syntax"] == "RXP" then
+        x, y = GetPlayerMapPosition("player")
+        x = x * 100
+        y = y * 100
+        local distance = (lastx - x) ^ 2 + (lasty - y) ^ 2
+
+        if not (mapName == lastMap and (lastx > 0 and distance < 0.03)) then
+            step = string.format("\nstep\n    .goto %s,%.1f,%.1f\n", mapName, x, y)
+            if GC_Settings["NPCnames"] and questNPC and previousQuestNPC ~= questNPC then
+                step = step .. "    >>Speak to " .. questNPC .. "\n"
+            end
+        end
+        if name == nil then
+            name = "*undefined*"
+        end
+        if id ~= nil then
+            step = string.format("%s    .accept %d >>Accept %s", step, id,name)
+        else
+            print("error")
+        end
 	end
 	previousQuestNPC = questNPC
 	questEvent = "accept"
@@ -647,6 +721,8 @@ local function FlightPath()
 		step = format("\n[G%.1f,%.1f%s]Get the [P %s] flight path",x,y,mapName,subzone)
 	elseif GC_Settings["syntax"] == "Zygor" then
 		step = string.format("\nstep\n    goto %s,%.1f,%.1f\n    fpath %s",mapName,x,y,subzone)
+    elseif GC_Settings["syntax"] == "RXP" then
+        step = string.format("\nstep\n    .goto %s,%.1f,%.1f\n    .fp >>Get the %s Flight Path", mapName, x, y, subzone)
 	end
 	updateGuide(step)
 end
@@ -665,6 +741,8 @@ local function SetHearthstone(home)
 		step = format("\n[G%.1f,%.1f%s][S]Set your Hearthstone to %s",x,y,mapName,home)
 	elseif GC_Settings["syntax"] == "Zygor" then
 		step = string.format("\nstep\n    goto %s,%.1f,%.1f\n    home %s",mapName,x,y,home)
+    elseif GC_Settings["syntax"] == "RXP" then
+        step = string.format("\nstep\n    .goto %s,%.1f,%.1f\n    .home >>Set your Hearthstone to %s", mapName, x, y, subzone)
 	end
 	updateGuide(step)
 end
@@ -1032,6 +1110,8 @@ local function addGotoStep(arg)
 			step = format("\n[G%.1f,%.1f%s]%s",x,y,mapName,arg)
 		elseif GC_Settings["syntax"] == "Zygor" then
 			step = string.format("\nstep\n    goto %s,%.1f,%.1f\n    %s",mapName,x,y,arg)
+		elseif GC_Settings["syntax"] == "RXP" then
+			step = string.format("\nstep\n    .goto %s,%.1f,%.1f\n    %s",mapName,x,y,arg)
 		end
 		updateGuide(step)
 		
@@ -1161,23 +1241,7 @@ function CreateWPframe(text,x,y,map)
   f:SetWidth(16)
   f:SetHeight(16)
 
---[[
-  if parent == WorldMapButton then
-    f.defalpha = pfQuest_config["worldmaptransp"] + 0
-  else
-    f.defalpha = pfQuest_config["minimaptransp"] + 0
-    f.minimap = true
-  end]]
 
- --[[
-  f:SetScript("OnEnter", pfMap.NodeEnter)
-  f:SetScript("OnLeave", pfMap.NodeLeave)
-  f:SetScript("OnUpdate", pfMap.NodeUpdate)
-  ]]
-
-  --[[f.tex = f:CreateTexture("OVERLAY")
-  f.tex:SetAllPoints(f)
-  ]]
   f.x = tonumber(x) / 100 * WorldMapButton:GetWidth()
   f.y = tonumber(y) / 100 * WorldMapButton:GetHeight()
   f.t = text
