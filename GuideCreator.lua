@@ -486,7 +486,7 @@ local function UseHearthstone()
     if GC_Settings["syntax"] == "Guidelime" then
         step = format("\n[H][OC]Hearth to %s", home)
     elseif GC_Settings["syntax"] == "Zygor" then
-        step = string.format("\nstep\n    Hearth to %s|goto %s,%.1f,.1f,2|noway|c", home,mapName,x,y)
+        step = string.format("\nstep\n    Hearth to %s|goto %s,%.1f,%.1f,2|noway|c", home,mapName,x,y)
     elseif GC_Settings["syntax"] == "RXP" then
         step = string.format("\nstep\n    #completewith next\n    .hs >>Hearth to %s", home)
     end
