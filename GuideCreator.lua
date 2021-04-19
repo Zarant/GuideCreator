@@ -1,11 +1,11 @@
 local version = select(4, GetBuildInfo())
 
 local function CreateFrame_(arg1,arg2,arg3,arg4,...)
-	if version < 20500 and arg4 == "BackdropTemplate" then
-		arg4 = nil
-	end
+    if version < 20500 and arg4 == "BackdropTemplate" then
+        arg4 = nil
+    end
 
-	return CreateFrame(arg1,arg2,arg3,arg4,...)
+    return CreateFrame(arg1,arg2,arg3,arg4,...)
 end
 
 local eventFrame = CreateFrame("Frame")
@@ -26,9 +26,7 @@ eventFrame:RegisterEvent("PLAYER_CONTROL_LOST")
 eventFrame:RegisterEvent("PLAYER_CONTROL_GAINED")
 eventFrame:RegisterEvent("UNIT_SPELLCAST_SUCCEEDED")
 eventFrame:RegisterEvent("TAXIMAP_OPENED")
-
-
-
+    
 GC_Debug = false
 
 local UpdateWindow, ScrollDown
@@ -61,7 +59,7 @@ end
 
 hooksecurefunc("TakeTaxiNode", function(i)
     taxiTime = GetTime()
-	currentTaxiNode = i
+    currentTaxiNode = i
 end)
 
 local function GetMapInfo()
@@ -267,14 +265,14 @@ function questObjectiveComplete(id, name, obj, text, type)
             end
         end
         lastUnique = isUnique
-	elseif GC_Settings["syntax"] == "RXP" then
+    elseif GC_Settings["syntax"] == "RXP" then
         if type == "monster" then
             monster, n = string.match(text, "(.*)%sslain%:%s%d+%/(%d+)")
 
             if not monster then
                 monster, n = string.match(text, "(.*)%:%s%d+/(%d+)")
             end
-			step = string.format(".complete %d,%d --%s (%s)", id, obj, monster,n)
+            step = string.format(".complete %d,%d --%s (%s)", id, obj, monster,n)
             n = tonumber(n)
         elseif type == "item" then
             item, n = string.match(text, "(.*)%:%s%d*/(%d*)")
@@ -481,14 +479,16 @@ local function UseHearthstone()
     local step = "\n"
     local mapName = GetMapInfo()
     local home = GetBindLocation()
-
+    local x, y = GetPlayerMapPosition("player")
+    x = x * 100
+    y = y * 100
+    
     if GC_Settings["syntax"] == "Guidelime" then
-        local x, y = GetPlayerMapPosition("player")
-        step = format("\nHearth to [H %s]", x, y, home)
+        step = format("\n[H][OC]Hearth to %s", home)
     elseif GC_Settings["syntax"] == "Zygor" then
-        step = string.format("\nstep\n    .hearth %s", home)
+        step = string.format("\nstep\n    Hearth to %s|goto %s,%.1f,.1f,2|noway|c", home,mapName,x,y)
     elseif GC_Settings["syntax"] == "RXP" then
-        step = string.format("\nstep\n    .hearth >>Use your Hearthstone to %s", home)
+        step = string.format("\nstep\n    #completewith next\n    .hs >>Hearth to %s", home)
     end
     updateGuide(step)
 end
@@ -512,26 +512,26 @@ local function FlightPath()
 end
 
 local function ProcessTaxiMap()
-	taxiNodeZone = {}
-	taxiNodeSubZone = {}
-	for i = 1,NumTaxiNodes() do
-		local name = TaxiNodeName(i)
-		if name then
-			local subzone,zone = name:match("%s*([^,]+),?%s*(.*)")
-			if zone == "" then
-				zone = subzone
-			end
-			taxiNodeZone[i] = zone
-			taxiNodeSubZone[i] = subzone
-		end
-	end
+    taxiNodeZone = {}
+    taxiNodeSubZone = {}
+    for i = 1,NumTaxiNodes() do
+        local name = TaxiNodeName(i)
+        if name then
+            local subzone,zone = name:match("%s*([^,]+),?%s*(.*)")
+            if zone == "" then
+                zone = subzone
+            end
+            taxiNodeZone[i] = zone
+            taxiNodeSubZone[i] = subzone
+        end
+    end
 end
 
 local function TakeFlightPath(index)
-	local subzone = taxiNodeSubZone[index]
-	if not subzone then return end
+    local subzone = taxiNodeSubZone[index]
+    if not subzone then return end
     local zone = taxiNodeZone[index]
-	local mapName = GetMapInfo()
+    local mapName = GetMapInfo()
     local x, y = GetPlayerMapPosition("player")
     x = x * 100
     y = y * 100
@@ -550,7 +550,7 @@ end
 eventFrame:SetScript(
     "OnEvent",
     function(self, event, arg1, arg2, arg3, arg4)
-        
+    
         if GC_Debug and event ~= "UNIT_SPELLCAST_SUCCEEDED" then
             debugMsg(event)
             if arg1 then
@@ -581,11 +581,13 @@ eventFrame:SetScript(
 
         elseif event == "UNIT_SPELLCAST_SUCCEEDED" then
             if  arg1 == "player" and arg3 == 8690 then
-                UseHearthstone()
+                C_Timer.After(1,function()
+                    UseHearthstone()
+                end)
             end
         elseif event == "TAXIMAP_OPENED" then
-			ProcessTaxiMap()
-			
+            ProcessTaxiMap()
+    
         elseif event == "PLAYER_CONTROL_LOST" then
             if GetTime() - taxiTime < 1 then
                 TakeFlightPath(currentTaxiNode)
