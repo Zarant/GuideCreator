@@ -1025,7 +1025,15 @@ local function addGotoStep(arg)
 	local mapName = GetMapInfo()
 	if mapName and arg then
 		local x, y = GetPlayerMapPosition("player")
-		step = format("\n[G%.2f,%.2f%s]%s",x*100,y*100,mapName,arg)
+        
+        if GC_Settings["syntax"] == "Guidelime" then
+            step = format("\n[G%.2f,%.2f%s]%s",x*100,y*100,mapName,arg)
+        else
+            if arg ~= "" then
+                arg = " >>"..arg
+            end
+             step = format("\n    .goto %s,%.2f,%.2f%s", mapName, x*100, y*100,arg)
+        end
 		updateGuide(step)
 		
 	end
