@@ -11,10 +11,11 @@ eventFrame:RegisterEvent("CHAT_MSG_SYSTEM")
 eventFrame:RegisterEvent("TAXIMAP_OPENED")
 GC_Debug = false
 local GetMapInfoOLD = GetMapInfo
+local lastx,lasty = -10,-10
+local lastMap = nil
 
 local function GetMapInfo()
-local name = GetMapInfoOLD()
-
+	local name = GetMapInfoOLD()
 	if name == "Stormwind" then
 		return "Stormwind City"
 	elseif name == "Redridge" then
@@ -69,6 +70,26 @@ local name = GetMapInfoOLD()
 		return "Eastern Plaguelands"
 	elseif name == "BlastedLands" then
 		return "Blasted Lands"
+	elseif name == "Hellfire" then
+		return "Hellfire Peninsula"
+	elseif name == "ShattrathCity" then
+		return "Shattrath City"	
+	elseif name == "TerokkarForest" then
+		return "Terokkar Forest"
+	elseif name == "AzuremystIsle" then
+		return "Azuremyst Isle"
+	elseif name == "BloodmystIsle" then
+		return "Bloodmyst Isle"
+	elseif name == "TheExodar" then
+		return "The Exodar"
+	elseif name == "EversongWoods" then
+		return "Eversong Woods"
+	elseif name == "SilvermoonCity" then
+		return "Silvermoon City"
+	elseif name == "BladesEdgeMountains" then
+		return "Blade's Edge Mountains"
+	elseif name == "ShadowmoonValley" then
+		return "Shadowmoon Valley"
 	elseif name == "Elwynn" then
 		return "Elwynn Forest"
 	else
@@ -87,7 +108,7 @@ end
 function GC_init()
 	if not GC_Settings then 
 		GC_Settings = {} 
-		GC_Settings["syntax"] = "Guidelime"
+		GC_Settings["syntax"] = "RXP"
 		GC_Settings["mapCoords"] = 0
 		GC_Settings["CurrentGuide"] = "New Guide"
 		GC_Settings["NPCnames"] = false
@@ -296,11 +317,22 @@ local function updateGuide(step)
 end
 
 local questEvent = ""
+local objectiveList = {}
 
 local function questObjectiveComplete(id,name,obj,text,type)
 	if VGuide and not GC_Debug then return end
+    if not objectiveList[id] then objectiveList[id] = {} end
+    if objectiveList[id][obj] and GetTime() - objectiveList[id][obj] < 1.5 then
+        return
+    else
+        objectiveList[id][obj] = GetTime()
+    end
+    
+    
 	debugMsg(format("%d-%s-%s-%s-%s",id,name,obj,text,type))
 	local step = ""
+    local mapName = GetMapInfo()
+    local x, y = GetPlayerMapPosition("player")
 	if GC_Settings["syntax"] == "Guidelime" then
 		if type == "monster" then
 			local _,_,monster,n = strfind(text,"(.*)%sslain%:%s%d*%/(%d*)")
@@ -335,10 +367,8 @@ local function questObjectiveComplete(id,name,obj,text,type)
 			end
 		end
 		if GC_Settings["mapCoords"] > 0 then
-			local mapName = GetMapInfo()
 			if mapName then
-				local x, y = GetPlayerMapPosition("player")
-				step = format("[G%.1f,%.1f%s]%s",x*100,y*100,mapName,step)
+				step = format("[G%.2f,%.2f%s]%s",x*100,y*100,mapName,step)
 			end
 		end
 		--[[if previousQuest == id and questEvent == "complete" then
@@ -347,14 +377,64 @@ local function questObjectiveComplete(id,name,obj,text,type)
 			step = "\n"..step
 		end]]
 		step = "\n"..step
+    elseif GC_Settings["syntax"] == "RXP" then
+        if type == "monster" then
+            _,_,monster, n = strfind(text, "(.*)%sslain%:%s%d+%/(%d+)")
+
+            if not monster then
+                _,_,monster, n = strfind(text, "(.*)%:%s%d+/(%d+)")
+            end
+			step = string.format(".complete %d,%d --%s (%s)", id, obj, monster,n)
+            n = tonumber(n)
+        elseif type == "item" then
+            _,_,item, n = strfind(text, "(.*)%:%s%d*/(%d*)")
+            n = tonumber(n)
+            step = string.format(".complete %d,%d --%s (%d)",id, obj,item,n)
+        elseif type == "event" then
+            _,_,item, n = strfind(text, "(.*)%:%s%d+/(%d+)")
+            if item then
+                step = string.format(".complete %d,%d --%s (%s)", id, obj,text,n)
+                n = tonumber(n)
+            else
+                n = 1
+                step = string.format(".complete %d,%d --%s (%d)", id, obj,text,n)
+            end
+        elseif type == "object" then
+            _, _, item, n = strfind(text, "(.*)%:%s%d*/(%d*)")
+            n = tonumber(n)
+            if item then
+                step = string.format(".complete %d,%d --%s (%d)", id, obj,item,n)
+            else
+                n = 1
+                step = string.format(".complete %d,%d --%s (%d)", id, obj,text,n)
+            end
+        end
+
+        local distance = (lastx - x) ^ 2 + (lasty - y) ^ 2
+
+        local isUnique = n == 1
+        if (mapName == lastMap and (lastx > 0 and distance < 0.03)) then
+            step = "\n    " .. step
+        else
+            if mapName then
+                print(step)
+                print(type)
+                step = string.format("\nstep\n    .goto %s,%.2f,%.2f\n    %s", mapName, x, y, step)
+            end
+        end
+        lastUnique = isUnique
 	end
 	questNPC = nil
 	previousQuestNPC = nil
 	previousQuest = id
 	questEvent = "complete"
 	--print('ok')
+    lastx = x
+    lasty = y
+    lastMap = mapName
 	updateGuide(step)
 end
+
 local function compareQuestObjectives(questData,objective,index,done)
 	debugMsg('cQO')
 	if not objective then return end
@@ -414,13 +494,13 @@ local questNPC = nil
 local function questTurnIn(id,name)
 	if VGuide and not GC_Debug then return end
 	--print(questNPC)
+    local mapName = GetMapInfo()
+    local x, y = GetPlayerMapPosition("player")
 	local step = "\n"
 	if GC_Settings["syntax"] == "Guidelime" then
 		if questNPC and previousQuestNPC ~= questNPC or UnitIsUnit("target","player") or not UnitExists("target") then
 			if GC_Settings["mapCoords"] >= 0 then
-				local mapName = GetMapInfo()
-				local x, y = GetPlayerMapPosition("player")
-				step = format("\n[G%.1f,%.1f%s]",x*100,y*100,mapName)
+				step = format("\n[G%.2f,%.2f%s]",x*100,y*100,mapName)
 			end
 			if  GC_Settings["NPCnames"] then
 				step = step.."Speak to "..questNPC.."\\\\\n"
@@ -430,23 +510,37 @@ local function questTurnIn(id,name)
 		if questNPC and previousQuestNPC == questNPC and questEvent ~= "complete" or UnitIsUnit("target","player") or not UnitExists("target") then
 			step = "\\\\"..step
 		end
+    elseif GC_Settings["syntax"] == "RXP" then
+        x = x * 100
+        y = y * 100
+        local distance = (lastx - x) ^ 2 + (lasty - y) ^ 2
+        if not (mapName == lastMap and (lastx > 0 and distance < 0.03)) then
+            step = string.format("\nstep\n    .goto %s,%.2f,%.2f\n", mapName, x, y)
+            if GC_Settings["NPCnames"] and questNPC and previousQuestNPC ~= questNPC then
+                step = step .. "    >>Speak to " .. questNPC .. "\n"
+            end
+        end
+        step = string.format("%s    .turnin %d >>Turn in %s", step, id, name)
 	end
 	previousQuest = 0
 	previousQuestNPC = questNPC
 	questEvent = "turnin"
+    lastx = x
+    lasty = y
+    lastMap = mapName
 	updateGuide(step)
 end
 local function questAccept(id,name)
 	if VGuide and not GC_Debug then return end
 	--print(questNPC)
+    local mapName = GetMapInfo()
+    local x, y = GetPlayerMapPosition("player")
 	local step = "\n"
 	if GC_Settings["syntax"] == "Guidelime" then
 		
 		if questNPC and previousQuestNPC ~= questNPC or UnitIsUnit("target","player") or not UnitExists("target") then
 			if GC_Settings["mapCoords"] >= 0 then
-				local mapName = GetMapInfo()
-				local x, y = GetPlayerMapPosition("player")
-				step = format("\n[G%.1f,%.1f%s]",x*100,y*100,mapName)
+				step = format("\n[G%.2f,%.2f%s]",x*100,y*100,mapName)
 			end
 			if  GC_Settings["NPCnames"] then
 				step = step.."Speak to "..questNPC.."\\\\\n"
@@ -456,7 +550,30 @@ local function questAccept(id,name)
 		if questNPC and previousQuestNPC == questNPC or UnitIsUnit("target","player") or not UnitExists("target")  then
 			step = "\\\\"..step
 		end
+    elseif GC_Settings["syntax"] == "RXP" then
+        x = x * 100
+        y = y * 100
+        local distance = (lastx - x) ^ 2 + (lasty - y) ^ 2
+
+        if not (mapName == lastMap and (lastx > 0 and distance < 0.03)) then
+            step = string.format("\nstep\n    .goto %s,%.2f,%.2f\n", mapName, x, y)
+            if GC_Settings["NPCnames"] and questNPC and previousQuestNPC ~= questNPC then
+                step = step .. "    >>Speak to " .. questNPC .. "\n"
+            end
+        end
+        if name == nil then
+            name = "*undefined*"
+        end
+        if id ~= nil then
+            step = string.format("%s    .accept %d >>Accept %s", step, id,name)
+        else
+            print("error")
+        end
 	end
+    
+    lastx = x
+    lasty = y
+    lastMap = mapName
 	previousQuest = 0
 	previousQuestNPC = questNPC
 	questEvent = "accept"
@@ -908,7 +1025,7 @@ local function addGotoStep(arg)
 	local mapName = GetMapInfo()
 	if mapName and arg then
 		local x, y = GetPlayerMapPosition("player")
-		step = format("\n[G%.1f,%.1f%s]%s",x*100,y*100,mapName,arg)
+		step = format("\n[G%.2f,%.2f%s]%s",x*100,y*100,mapName,arg)
 		updateGuide(step)
 		
 	end
@@ -997,3 +1114,45 @@ SlashCmdList["GUIDE"] = function(msg)
 	end	
 end 
 
+local SendChatMessageOLD = SendChatMessage
+
+local chathook = function(msg)
+	if UnitIsUnit("player","target") or not UnitExists("target") then
+        local zone = ""
+		local _,_,id = strfind(msg,"%.q%s+c%s+(%d+)")
+        id = tonumber(id)
+		if not id then return end
+		local n = GetNumQuestLogEntries()
+		for i = 1,n do
+            local qID
+            local name,level,questTag,isHeader,isCollapsed,isComplete = GetQuestLogTitle(i)
+            if  isHeader then
+                zone = name
+            else
+                SelectQuestLogEntry(i)
+                local _,text = GetQuestLogQuestText()
+                qID = getQuestId(name,level,zone,text)
+                --print(qID..type(qID)..tostring(qID == id))
+            end
+			if qID == id then
+                print("sds"..qID)
+				local nobj = GetNumQuestLeaderBoards(i)
+				if nobj > 0 then
+					for j = 1,nobj do
+						local desc, type, done = GetQuestLogLeaderBoard(j, i)
+						--print(">>"..desc, type, done)
+						if not done then
+							questObjectiveComplete(id,name,j,desc,type)
+						end
+					end
+				end
+			end
+		end
+        --print('ok')
+	end
+end
+
+SendChatMessage = function(arg1,arg2,arg3,arg4,arg5,arg6,arg7)
+    SendChatMessageOLD(arg1,arg2,arg3,arg4,arg5,arg6,arg7)
+    chathook(arg1)
+end
