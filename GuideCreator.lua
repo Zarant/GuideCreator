@@ -277,31 +277,32 @@ local function getQuestData()
 		if  isHeader then
 			zone = name
 		else
-		local _,text = GetQuestLogQuestText()
-		local id = getQuestId(name,level,zone,text)
-        if id then
-			GC_QuestTable[id] = false
-			--print(name..tostring(level)..zone..text)
-			questData[id] = {}
-			questData[id]["name"] = name
-			questData[id]["text"] = text
-			questData[id]["completed"] = isComplete
-			questData[id]["tracked"] = IsQuestWatched(i)
-			questData[id]["zone"] = zone
-			questData[id]["level"] = level
-			questData[id].index = i
-			local nobj = GetNumQuestLeaderBoards(i)
-			if nobj > 0 then
-			questData[id]["objectives"] = {}
-				for j = 1,nobj do
-					local desc, type, done = GetQuestLogLeaderBoard(j, i)
-					questData[id]["objectives"][j] = {desc,type,done}
-				end
-			end
-			questData[0] = questData[0]+1
-        else
-            print("Error: can't find quest ID")
-            print(name)
+            local _,text = GetQuestLogQuestText()
+            local id = getQuestId(name,level,zone,text)
+            if id then
+                GC_QuestTable[id] = false
+                --print(name..tostring(level)..zone..text)
+                questData[id] = {}
+                questData[id]["name"] = name
+                questData[id]["text"] = text
+                questData[id]["completed"] = isComplete
+                questData[id]["tracked"] = IsQuestWatched(i)
+                questData[id]["zone"] = zone
+                questData[id]["level"] = level
+                questData[id].index = i
+                local nobj = GetNumQuestLeaderBoards(i)
+                if nobj > 0 then
+                questData[id]["objectives"] = {}
+                    for j = 1,nobj do
+                        local desc, type, done = GetQuestLogLeaderBoard(j, i)
+                        questData[id]["objectives"][j] = {desc,type,done}
+                    end
+                end
+                questData[0] = questData[0]+1
+            else
+                print("Error: can't find quest ID")
+                print(name)
+            end
 		end
 	end
 	--print(questData[0])
