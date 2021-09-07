@@ -279,6 +279,7 @@ local function getQuestData()
 		else
 		local _,text = GetQuestLogQuestText()
 		local id = getQuestId(name,level,zone,text)
+        if id then
 			GC_QuestTable[id] = false
 			--print(name..tostring(level)..zone..text)
 			questData[id] = {}
@@ -298,6 +299,9 @@ local function getQuestData()
 				end
 			end
 			questData[0] = questData[0]+1
+        else
+            print("Error: can't find quest ID")
+            print(name)
 		end
 	end
 	--print(questData[0])
@@ -333,6 +337,8 @@ local function questObjectiveComplete(id,name,obj,text,type)
 	local step = ""
     local mapName = GetMapInfo()
     local x, y = GetPlayerMapPosition("player")
+    x = x*100
+    y = y*100
 	if GC_Settings["syntax"] == "Guidelime" then
 		if type == "monster" then
 			local _,_,monster,n = strfind(text,"(.*)%sslain%:%s%d*%/(%d*)")
@@ -368,7 +374,7 @@ local function questObjectiveComplete(id,name,obj,text,type)
 		end
 		if GC_Settings["mapCoords"] > 0 then
 			if mapName then
-				step = format("[G%.2f,%.2f%s]%s",x*100,y*100,mapName,step)
+				step = format("[G%.2f,%.2f%s]%s",x,y,mapName,step)
 			end
 		end
 		--[[if previousQuest == id and questEvent == "complete" then
@@ -378,6 +384,7 @@ local function questObjectiveComplete(id,name,obj,text,type)
 		end]]
 		step = "\n"..step
     elseif GC_Settings["syntax"] == "RXP" then
+        
         if type == "monster" then
             _,_,monster, n = strfind(text, "(.*)%sslain%:%s%d+%/(%d+)")
 
