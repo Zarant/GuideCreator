@@ -1,15 +1,9 @@
 local version = select(4, GetBuildInfo())
 
-local function CreateFrame_(arg1,arg2,arg3,arg4,...)
-    if version < 20500 and arg4 == "BackdropTemplate" then
-        arg4 = nil
-    end
-
-    return CreateFrame(arg1,arg2,arg3,arg4,...)
-end
 
 local eventFrame = CreateFrame("Frame")
-local f = CreateFrame_("Frame", "GC_Editor", UIParent, "BackdropTemplate")
+local BackdropTemplate = BackdropTemplateMixin and "BackdropTemplate" or nil
+local f = CreateFrame("Frame", "GC_Editor", UIParent, BackdropTemplate)
 
 eventFrame:RegisterEvent("QUEST_LOG_UPDATE")
 eventFrame:RegisterEvent("QUEST_DETAIL")
@@ -806,7 +800,7 @@ local backdrop = {
     }
 }
 
-f.Text = CreateFrame_("EditBox", nil, f, "BackdropTemplate")
+f.Text = CreateFrame("EditBox", nil, f, BackdropTemplate)
 f.Text:SetBackdrop(backdrop)
 f.Text:SetBackdropColor(0.1, 0.1, 0.1)
 f.Text:SetMultiLine(true)
