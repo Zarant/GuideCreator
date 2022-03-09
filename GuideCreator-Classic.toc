@@ -1,4 +1,4 @@
-## Interface: 90200
+## Interface: 11402
 ## Title: GuideCreator
 ## Notes: Auto generates in-game leveling guides
 ## Author: Zarant
