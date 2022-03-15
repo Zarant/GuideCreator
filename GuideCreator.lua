@@ -66,7 +66,8 @@ end
 
 local function GetMapInfo()
     local id = C_Map.GetBestMapForUnit("player")
-    return C_Map.GetMapInfo(id).name
+    --return C_Map.GetMapInfo(id).name
+    return tostring(id)
 end
 
 local function GetPlayerMapPosition(unitToken)
@@ -597,7 +598,7 @@ eventFrame:SetScript(
 			if arg1 then
 				CquestId = arg1
 			end
-            if CquestId then
+            if CquestId and (version < 70000 or not C_QuestLog.IsWorldQuest(CquestId)) then
                 Cname = GetQuestName(CquestId)
                 questAccept(CquestId, Cname)
                 CquestId = nil
