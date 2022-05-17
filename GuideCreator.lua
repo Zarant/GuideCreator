@@ -595,8 +595,8 @@ eventFrame:SetScript(
             Cname = GetQuestName(CquestId)
 
         elseif event == "QUEST_ACCEPTED" then
-			if arg1 then
-				CquestId = arg1
+			if arg2 then
+				CquestId = arg2
 			end
             if CquestId and (version < 70000 or not C_QuestLog.IsWorldQuest(CquestId)) then
                 Cname = GetQuestName(CquestId)
