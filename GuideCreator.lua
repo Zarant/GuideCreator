@@ -66,8 +66,11 @@ end
 
 local function GetMapInfo()
     local id = C_Map.GetBestMapForUnit("player")
-    --return C_Map.GetMapInfo(id).name
-    return tostring(id)
+    if version < 70000 and id then
+	return C_Map.GetMapInfo(id).name
+    else
+        return tostring(id)
+    end
 end
 
 local function GetPlayerMapPosition(unitToken)
