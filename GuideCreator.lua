@@ -223,7 +223,7 @@ function questObjectiveComplete(id, name, obj, text, type)
         end
         if GC_Settings["mapCoords"] > 0 then
             if mapName then
-                step = format("[G%.1f,%.1f%s]%s", x, y, mapName, step)
+                step = format("[G%.2f,%.2f%s]%s", x, y, mapName, step)
             end
         end
         step = "\n" .. step
@@ -273,7 +273,7 @@ function questObjectiveComplete(id, name, obj, text, type)
             step = "\n    " .. step
         else
             if mapName then
-                step = string.format("\nstep\n    .goto %s,%.1f,%.1f\n    %s", mapName, x, y, step)
+                step = string.format("\nstep\n    .goto %s,%.2f,%.2f\n    %s", mapName, x, y, step)
             end
         end
         lastUnique = isUnique
@@ -287,7 +287,7 @@ function questObjectiveComplete(id, name, obj, text, type)
 				step = "\n    " .. step
 			else
 				if mapName then
-					step = string.format("\nstep\n    .goto %s,%.1f,%.1f\n    %s", mapName, x, y, step)
+					step = string.format("\nstep\n    .goto %s,%.2f,%.2f\n    %s", mapName, x, y, step)
 				end
 			end
 			lastUnique = isUnique
@@ -324,7 +324,7 @@ function questTurnIn(id, name)
         if questNPC and previousQuestNPC ~= questNPC then
             if GC_Settings["mapCoords"] >= 0 then
                 local x, y = GetPlayerMapPosition("player")
-                step = format("\n[G%.1f,%.1f%s]", x * 100, y * 100, mapName)
+                step = format("\n[G%.2f,%.2f%s]", x * 100, y * 100, mapName)
             end
             if GC_Settings["NPCnames"] then
                 step = step .. "Speak to " .. questNPC .. "\\\\\n"
@@ -340,7 +340,7 @@ function questTurnIn(id, name)
         y = y * 100
         local distance = (lastx - x) ^ 2 + (lasty - y) ^ 2
         if not (mapName == lastMap and (lastx > 0 and distance < 0.03)) then
-            step = string.format("\nstep\n    .goto %s,%.1f,%.1f\n", mapName, x, y)
+            step = string.format("\nstep\n    .goto %s,%.2f,%.2f\n", mapName, x, y)
             if GC_Settings["NPCnames"] and questNPC and previousQuestNPC ~= questNPC then
                 step = step .. "    Speak to " .. questNPC .. "\n"
             end
@@ -353,7 +353,7 @@ function questTurnIn(id, name)
 			y = y * 100
 			local distance = (lastx - x) ^ 2 + (lasty - y) ^ 2
 			if not (mapName == lastMap and (lastx > 0 and distance < 0.03)) then
-				step = string.format("\nstep\n    .goto %s,%.1f,%.1f\n", mapName, x, y)
+				step = string.format("\nstep\n    .goto %s,%.2f,%.2f\n", mapName, x, y)
 				if GC_Settings["NPCnames"] and questNPC and previousQuestNPC ~= questNPC then
 					step = step .. "    >>Speak to " .. questNPC .. "\n"
 				end
@@ -383,7 +383,7 @@ function questAccept(id, name)
         if questNPC and previousQuestNPC ~= questNPC then
             if GC_Settings["mapCoords"] >= 0 then
                 local x, y = GetPlayerMapPosition("player")
-                step = format("\n[G%.1f,%.1f%s]", x * 100, y * 100, mapName)
+                step = format("\n[G%.2f,%.2f%s]", x * 100, y * 100, mapName)
             end
             if GC_Settings["NPCnames"] then
                 step = step .. "Speak to " .. questNPC .. "\\\\\n"
@@ -400,7 +400,7 @@ function questAccept(id, name)
         local distance = (lastx - x) ^ 2 + (lasty - y) ^ 2
 
         if not (mapName == lastMap and (lastx > 0 and distance < 0.03)) then
-            step = string.format("\nstep\n    .goto %s,%.1f,%.1f\n", mapName, x, y)
+            step = string.format("\nstep\n    .goto %s,%.2f,%.2f\n", mapName, x, y)
             if GC_Settings["NPCnames"] and questNPC and previousQuestNPC ~= questNPC then
                 step = step .. "    Speak to " .. questNPC .. "\n"
             end
@@ -421,7 +421,7 @@ function questAccept(id, name)
 			local distance = (lastx - x) ^ 2 + (lasty - y) ^ 2
 
 			if not (mapName == lastMap and (lastx > 0 and distance < 0.03)) then
-				step = string.format("\nstep\n    .goto %s,%.1f,%.1f\n", mapName, x, y)
+				step = string.format("\nstep\n    .goto %s,%.2f,%.2f\n", mapName, x, y)
 				if GC_Settings["NPCnames"] and questNPC and previousQuestNPC ~= questNPC then
 					step = step .. "    >>Speak to " .. questNPC .. "\n"
 				end
@@ -453,11 +453,11 @@ local function SetHearthstone()
     y = y * 100
     if GC_Settings["syntax"] == "Guidelime" then
         local x, y = GetPlayerMapPosition("player")
-        step = format("\n[G%.1f,%.1f%s][S]Set your Hearthstone to %s", x, y, mapName, subzone)
+        step = format("\n[G%.2f,%.2f%s][S]Set your Hearthstone to %s", x, y, mapName, subzone)
     elseif GC_Settings["syntax"] == "Zygor" then
-        step = string.format("\nstep\n   .home %s|.goto %.1f,%.1f", subzone, x, y)
+        step = string.format("\nstep\n   .home %s|.goto %.2f,%.2f", subzone, x, y)
     elseif GC_Settings["syntax"] == "RXP" then
-        step = string.format("\nstep\n    .goto %s,%.1f,%.1f\n    .home >>Set your Hearthstone to %s", mapName, x, y, subzone)
+        step = string.format("\nstep\n    .goto %s,%.2f,%.2f\n    .home >>Set your Hearthstone to %s", mapName, x, y, subzone)
     end
     updateGuide(step)
 end
@@ -473,7 +473,7 @@ local function UseHearthstone()
 		local x, y = GetPlayerMapPosition("player")
 		x = x * 100
 		y = y * 100
-        step = string.format("\nstep\n    Hearth to %s|goto %s,%.1f,.1f,2|noway|c", home,mapName,x,y)
+        step = string.format("\nstep\n    Hearth to %s|goto %s,%.2f,.2f,2|noway|c", home,mapName,x,y)
     elseif GC_Settings["syntax"] == "RXP" then
         step = string.format("\nstep\n    #completewith next\n    .hs >>Hearth to %s", home)
     end
@@ -490,11 +490,11 @@ local function FlightPath()
     y = y * 100
     if GC_Settings["syntax"] == "Guidelime" then
         local x, y = GetPlayerMapPosition("player")
-        step = format("\n[G%.1f,%.1f%s]Get the [P %s] flight path", x, y, mapName, subzone)
+        step = format("\n[G%.2f,%.2f%s]Get the [P %s] flight path", x, y, mapName, subzone)
     elseif GC_Settings["syntax"] == "Zygor" then
-        step = string.format("\nstep\n    goto %s,%.1f,%.1f\n    fpath %s", mapName, x, y, subzone)
+        step = string.format("\nstep\n    goto %s,%.2f,%.2f\n    fpath %s", mapName, x, y, subzone)
     elseif GC_Settings["syntax"] == "RXP" then
-        step = string.format("\nstep\n    .goto %s,%.1f,%.1f\n    .fp >>Get the %s Flight Path", mapName, x, y, subzone)
+        step = string.format("\nstep\n    .goto %s,%.2f,%.2f\n    .fp >>Get the %s Flight Path", mapName, x, y, subzone)
     end
     updateGuide(step)
 end
@@ -526,11 +526,11 @@ local function TakeFlightPath(index)
 
     if GC_Settings["syntax"] == "Guidelime" then
         local x, y = GetPlayerMapPosition("player")
-        step = format("\n[G%.1f,%.1f%s]Fly to [F %s]", x, y, mapName, subzone)
+        step = format("\n[G%.2f,%.2f%s]Fly to [F %s]", x, y, mapName, subzone)
     elseif GC_Settings["syntax"] == "Zygor" then
-        step = string.format("\nstep\n  .goto %s,%.1f,%.1f|n\n    Fly to %s|goto %s|noway|c",mapName, x, y, subzone, zone)
+        step = string.format("\nstep\n  .goto %s,%.2f,%.2f|n\n    Fly to %s|goto %s|noway|c",mapName, x, y, subzone, zone)
     elseif GC_Settings["syntax"] == "RXP" then
-        step = string.format("\nstep\n    .goto %s,%.1f,%.1f\n    .fly %s >>Fly to %s", mapName, x, y, subzone, subzone)
+        step = string.format("\nstep\n    .goto %s,%.2f,%.2f\n    .fly %s >>Fly to %s", mapName, x, y, subzone, subzone)
     end
     updateGuide(step)
 end
@@ -849,11 +849,11 @@ local function addGotoStep(arg)
         x = x * 100
         y = y * 100
         if GC_Settings["syntax"] == "Guidelime" then
-            step = format("\n[G%.1f,%.1f%s]%s", x, y, mapName, arg)
+            step = format("\n[G%.2f,%.2f%s]%s", x, y, mapName, arg)
         elseif GC_Settings["syntax"] == "Zygor" then
-            step = string.format("\nstep\n    .goto %s,%.1f,%.1f\n    %s", mapName, x, y, arg)
+            step = string.format("\nstep\n    .goto %s,%.2f,%.2f\n    %s", mapName, x, y, arg)
         elseif GC_Settings["syntax"] == "RXP" then
-            step = string.format("\nstep\n    .goto %s,%.1f,%.1f\n    >>%s", mapName, x, y, arg)
+            step = string.format("\nstep\n    .goto %s,%.2f,%.2f\n    >>%s", mapName, x, y, arg)
         end
         updateGuide(step)
     end
