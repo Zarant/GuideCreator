@@ -141,7 +141,12 @@ local function getQuestData()
     local n = entries()
 
     for i = 1, n do
-        local questID = C_QuestLog.GetQuestIDForLogIndex(i)
+        local questID
+	if C_QuestLog.GetQuestIDForLogIndex then
+		questID = C_QuestLog.GetQuestIDForLogIndex(i)
+	else
+		_, _, _, _, _, _, _, questID = GetQuestLogTitle(i)
+	end
         if questID and GetNumQuestLeaderBoards(i) > 0 then
             local qo = C_QuestLog.GetQuestObjectives(questID)
             for key, value in pairs(qo) do
