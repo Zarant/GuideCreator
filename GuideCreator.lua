@@ -66,11 +66,7 @@ end
 
 local function GetMapInfo()
     local id = C_Map.GetBestMapForUnit("player")
-    if version < 70000 and id then
-	return C_Map.GetMapInfo(id).name
-    else
-        return tostring(id)
-    end
+    return C_Map.GetMapInfo(id).name
 end
 
 local function GetPlayerMapPosition(unitToken)
@@ -141,12 +137,7 @@ local function getQuestData()
     local n = entries()
 
     for i = 1, n do
-        local questID
-	if C_QuestLog.GetQuestIDForLogIndex then
-		questID = C_QuestLog.GetQuestIDForLogIndex(i)
-	else
-		_, _, _, _, _, _, _, questID = GetQuestLogTitle(i)
-	end
+        local questID = C_QuestLog.GetQuestIDForLogIndex(i)
         if questID and GetNumQuestLeaderBoards(i) > 0 then
             local qo = C_QuestLog.GetQuestObjectives(questID)
             for key, value in pairs(qo) do
@@ -310,8 +301,8 @@ function questObjectiveComplete(id, name, obj, text, type)
     end
     lastId = id
     lastObj = obj
-    lastx = x
-    lasty = y
+    lastx = x or -10
+    lasty = y or -10
     lastMap = mapName
 end
 
@@ -370,8 +361,8 @@ function questTurnIn(id, name)
     previousQuestNPC = questNPC
     questEvent = "turnin"
     updateGuide(step)
-    lastx = x
-    lasty = y
+    lastx = x or -10
+    lasty = y or -10
 end
 
 function questAccept(id, name)
@@ -444,8 +435,8 @@ function questAccept(id, name)
     previousQuestNPC = questNPC
     questEvent = "accept"
     updateGuide(step)
-    lastx = x
-    lasty = y
+    lastx = x or -10
+    lasty = y or -10
     lastMap = mapName
 end
 
@@ -603,10 +594,10 @@ eventFrame:SetScript(
             Cname = GetQuestName(CquestId)
 
         elseif event == "QUEST_ACCEPTED" then
-			if arg2 then
-				CquestId = arg2
+			if arg1 then
+				CquestId = arg1
 			end
-            if CquestId and (version < 70000 or not C_QuestLog.IsWorldQuest(CquestId)) then
+            if CquestId then
                 Cname = GetQuestName(CquestId)
                 questAccept(CquestId, Cname)
                 CquestId = nil
@@ -811,7 +802,7 @@ f.Text:SetMultiLine(true)
 f.Text:SetWidth(width - 45)
 f.Text:SetPoint("TOPLEFT", f.SF)
 f.Text:SetPoint("BOTTOMRIGHT", f.SF)
-f.Text:SetFont("Interface\\AddOns\\GuideCreator\\fonts\\VeraMono.ttf", 12)
+f.Text:SetFont("Interface\\AddOns\\GuideCreator\\fonts\\VeraMono.ttf", 12, "")
 f.Text:SetTextColor(1, 1, 1, 1)
 f.Text:SetFontObject(GameFontNormal)
 f.Text:SetAutoFocus(false)
@@ -1101,7 +1092,7 @@ local function GenerateWaypoints(guide, start, finish)
             local textLabel = "\n    "
             local nsi = si
             local nsx = sx
-            if step.goto then
+            if step["goto"] then
                 si = si + 1
                 if si > 9 then
                     si = 1
@@ -1111,8 +1102,8 @@ local function GenerateWaypoints(guide, start, finish)
                 textLabel = "\n" .. stepLabel .. ": "
             end
 
-            if step.goto then
-                for _, element in pairs(step.goto) do
+            if step["goto"] then
+                for _, element in pairs(step["goto"]) do
                     for _, v in pairs(gotoList) do
                         if
                             v[1] == element.zone and math.abs(tonumber(v[2]) - tonumber(element.x)) < 2 and
