@@ -1,5 +1,5 @@
+local _,addon = ...
 local version = select(4, GetBuildInfo())
-
 
 local eventFrame = CreateFrame("Frame")
 local BackdropTemplate = BackdropTemplateMixin and "BackdropTemplate" or nil
@@ -131,7 +131,7 @@ function UpdateWindow()
         f.Text:SetText(GC_GuideList[GC_Settings["CurrentGuide"]])
     end
     f.Text:ClearFocus()
-    ScrollDown()
+    addon.ScrollDown()
 end
 
 local function getQuestData()
@@ -811,7 +811,7 @@ f.Text:SetMultiLine(true)
 f.Text:SetWidth(width - 45)
 f.Text:SetPoint("TOPLEFT", f.SF)
 f.Text:SetPoint("BOTTOMRIGHT", f.SF)
-f.Text:SetFont("Interface\\AddOns\\GuideCreator\\fonts\\VeraMono.ttf", 12)
+f.Text:SetFont("Interface\\AddOns\\GuideCreator\\fonts\\VeraMono.ttf", 12, "")
 f.Text:SetTextColor(1, 1, 1, 1)
 f.Text:SetFontObject(GameFontNormal)
 f.Text:SetAutoFocus(false)
@@ -823,9 +823,10 @@ f.Text:SetScript(
 )
 f.SF:SetScrollChild(f.Text)
 
-function ScrollDown()
+function addon.ScrollDown()
     f.SF:SetVerticalScroll(f.SF:GetVerticalScrollRange())
 end
+ScrollDown = addon.ScrollDown
 
 local function GC_Editor()
     f:Show()
