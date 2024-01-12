@@ -313,6 +313,7 @@ function questTurnIn(id, name)
         lasty = -10
         lastMap = ""
     end
+    questNPC = (not UnitPlayerControlled('target') and UnitName("target"))
     local step = "\n"
     local x, y = 0.0, 0.0
     local mapName = GetMapInfo()
@@ -351,7 +352,7 @@ function questTurnIn(id, name)
 			if not (mapName == lastMap and (lastx > 0 and distance < 0.03)) then
 				step = string.format("\nstep\n    .goto %s,%.2f,%.2f\n", mapName, x, y)
 				if GC_Settings["NPCnames"] and questNPC and previousQuestNPC ~= questNPC then
-					step = step .. "    >>Speak to " .. questNPC .. "\n"
+					step = string.format("%s    >>|Tinterface/worldmap/chatbubble_64grey.blp:20|tTalk to |cRXP_FRIENDLY_%s|r\n    .target %s\n",step,questNPC,questNPC)
 				end
 			end
 		end
@@ -366,6 +367,7 @@ function questTurnIn(id, name)
 end
 
 function questAccept(id, name)
+    questNPC = (not UnitPlayerControlled('target') and UnitName("target"))
     if previousQuest then
         previousQuest = nil
         lastx = -10
@@ -419,7 +421,7 @@ function questAccept(id, name)
 			if not (mapName == lastMap and (lastx > 0 and distance < 0.03)) then
 				step = string.format("\nstep\n    .goto %s,%.2f,%.2f\n", mapName, x, y)
 				if GC_Settings["NPCnames"] and questNPC and previousQuestNPC ~= questNPC then
-					step = step .. "    >>Speak to " .. questNPC .. "\n"
+					step = string.format("%s    >>|Tinterface/worldmap/chatbubble_64grey.blp:20|tTalk to |cRXP_FRIENDLY_%s|r\n    .target %s\n",step,questNPC,questNPC)
 				end
 			end
 		end
