@@ -21,6 +21,9 @@ eventFrame:RegisterEvent("PLAYER_CONTROL_GAINED")
 eventFrame:RegisterEvent("UNIT_SPELLCAST_SUCCEEDED")
 eventFrame:RegisterEvent("TAXIMAP_OPENED")
 eventFrame:RegisterEvent("GOSSIP_SHOW")
+eventFrame:RegisterEvent("PLAYER_TARGET_CHANGED")
+
+
 
 GC_Debug = false
 
@@ -35,6 +38,7 @@ local lastObj
 local lastUnique
 local previousQuestNPC = nil
 local questNPC = nil
+local questNPCID
 local previousQuest
 local onFly = false
 local taxiTime = 0
@@ -42,6 +46,7 @@ local QuestLog
 local taxiNodeZone = {}
 local taxiNodeSubZone = {}
 local currentTaxiNode = 0
+local npcIdCache = {}
 
 local step
 local name
@@ -61,44 +66,22 @@ hooksecurefunc("TakeTaxiNode", function(i)
     currentTaxiNode = i
 end)
 
-local function GetSubZoneId(zone,x,y)
-    local subzonemax = 1e6
-    if gameVersion < 50000 then
-        subzonemax = 15325
+local function GetNpcId(unit, isGuid)
+    if not unit then
+        if isGuid then
+            return
+        else
+            unit = "target"
+        end
     end
-    local subzone = ""
-    local zoneText = ""
-    if zone and x and y then
-       zoneText = GetZoneText() or 2
-       zone = addon.GetMapId(zone) or zone
-       x = x / 100
-       y = y / 100
-       subzone = MapUtil.FindBestAreaNameAtMouse(zone,x,y)
-    elseif zone then
-       subzone = zone
+    local guid
+    if isGuid then
+        guid = unit
     else
-        subzone = GetSubZoneText() or 1
-        zoneText = GetZoneText() or 2
+        guid = UnitGUID(unit) or ''
     end
-
-    if subzone or zoneText then
-        local bestMatchId,bestMatchText
-        for i = 1,subzonemax do
-            local zoneName = C_Map.GetAreaInfo(i) or 3
-            if zoneName and zoneName == subzone then
-                print(zoneName .. ' Subzone ID: ' .. i)
-                return i
-            elseif zoneText == zoneName then
-                bestMatchId = i
-                bestMatchText = zoneName
-            end
-        end
-        if bestMatchId and bestMatchText then
-            print(bestMatchText .. ' Subzone ID: ' .. bestMatchId)
-            return bestMatchId
-        end
-    end
-    print('ERROR: Subzone not found')
+    local _, _, _, _, _, npcId = strsplit('-', guid)
+    return tonumber(npcId)
 end
 
 local function GetQuestName(id)
@@ -152,6 +135,45 @@ local function GetPlayerMapPosition(unitToken)
    end
    return nil,nil
 end
+
+local function GetSubZoneId(zone,x,y)
+    local subzonemax = 1e5
+
+    local subzone = ""
+    local zoneText = ""
+    if zone and x and y then
+       zoneText = GetZoneText() or 2
+       zone = RXP.GetMapId(zone) or zone
+       x = x / 100
+       y = y / 100
+       subzone = MapUtil.FindBestAreaNameAtMouse(zone,x,y)
+    elseif zone then
+       subzone = zone
+    else
+        subzone = GetSubZoneText() or 1
+        zoneText = GetZoneText() or 2
+    end
+
+    if subzone or zoneText then
+        local bestMatchId,bestMatchText
+        for i = 1,subzonemax do
+            local zoneName = C_Map.GetAreaInfo(i) or 3
+            if zoneName and zoneName == subzone then
+                print(zoneName .. ' Subzone ID: ' .. i)
+                return i
+            elseif zoneText == zoneName then
+                bestMatchId = i
+                bestMatchText = zoneName
+            end
+        end
+        if bestMatchId and bestMatchText then
+            print(bestMatchText .. ' Subzone ID: ' .. bestMatchId)
+            return bestMatchId
+        end
+    end
+    print('ERROR: Subzone not found')
+end
+
 --F2 = GetPlayerMapPosition
 
 local currentVersion = 1
@@ -368,7 +390,13 @@ function questObjectiveComplete(id, name, obj, text, type)
         step = string.format(".complete %d,%d --||%s",id, obj,text)
         local npcname = text:match("^%d+/%d+ (.-) slain$")
         if npcname then
-            step = format("%s\n    .mob %s",step,npcname)
+            local npcid = npcIdCache[npcname]
+
+            if npcid then
+                step = format("%s\n    .mob %s::%s",step,npcname,npcid)
+            else
+                step = format("%s\n    .mob %s",step,npcname)
+            end
         end
 		if x and y then
 			local distance = (lastx - x) ^ 2 + (lasty - y) ^ 2
@@ -409,6 +437,7 @@ function questTurnIn(id, name)
         lastMap = ""
     end
     questNPC = (not UnitPlayerControlled('target') and UnitName("target"))
+    questNPCID = (not UnitPlayerControlled('target') and GetNpcId('target'))
     local step = "\n"
     local x, y = 0.0, 0.0
     local _,mapName = GetMapInfo()
@@ -447,7 +476,7 @@ function questTurnIn(id, name)
 			if not (mapName == lastMap and (lastx > 0 and distance < 0.03)) then
 				step = string.format("\nstep\n    .goto %s,%.3f,%.3f\n", mapName, x, y)
 				if GC_Settings["NPCnames"] and questNPC and previousQuestNPC ~= questNPC then
-					step = string.format("%s    >>||Tinterface/worldmap/chatbubble_64grey.blp:20||tTalk to ||cRXP_FRIENDLY_%s||r\n    .target %s\n",step,questNPC,questNPC)
+					step = string.format("%s    >>||Tinterface/worldmap/chatbubble_64grey.blp:20||tTalk to ||cRXP_FRIENDLY_%s::%d||r\n    .target %s::%d\n",step,questNPC,questNPCID,questNPC,questNPCID)
 				end
 			end
 		end
@@ -463,6 +492,7 @@ end
 
 function questAccept(id, name)
     questNPC = (not UnitPlayerControlled('target') and UnitName("target"))
+    questNPCID = (not UnitPlayerControlled('target') and GetNpcId('target'))
     if previousQuest then
         previousQuest = nil
         lastx = -10
@@ -516,7 +546,7 @@ function questAccept(id, name)
 			if not (mapName == lastMap and (lastx > 0 and distance < 0.03)) then
 				step = string.format("\nstep\n    .goto %s,%.3f,%.3f\n", mapName, x, y)
 				if GC_Settings["NPCnames"] and questNPC and previousQuestNPC ~= questNPC then
-					step = string.format("%s    >>||Tinterface/worldmap/chatbubble_64grey.blp:20||tTalk to ||cRXP_FRIENDLY_%s||r \n    .target %s\n",step,questNPC,questNPC)
+					step = string.format("%s    >>||Tinterface/worldmap/chatbubble_64grey.blp:20||tTalk to ||cRXP_FRIENDLY_%s::%s||r \n    .target %s::%s\n",step,questNPC,questNPCID,questNPC,questNPCID)
 				end
 			end
 		end
@@ -558,7 +588,8 @@ local function SetHearthstone()
         step = string.format("\n    .goto %s,%.3f,%.3f\n    .home >>Set your Hearthstone to %s", mapName, x, y, subzone)
         if GC_Settings["NPCnames"] then
             local NPC = UnitName('target') or ""
-            step = string.format("\n    >>||Tinterface/worldmap/chatbubble_64grey.blp:20||tTalk to ||cRXP_FRIENDLY_%s||r\n    .target %s%s%s",NPC,NPC,bindloc,step)
+            local NPCID =  GetNpcId('target') or ""
+            step = string.format("\n    >>||Tinterface/worldmap/chatbubble_64grey.blp:20||tTalk to ||cRXP_FRIENDLY_%s::%s||r\n    .target %s::%s%s%s",NPC,NPCID,NPC,NPCID,bindloc,step)
         end
         step = "\nstep" .. step
     end
@@ -600,7 +631,8 @@ local function FlightPath()
         step = string.format("\n    .goto %s,%.3f,%.3f\n    .fp >>Get the %s Flight Path", mapName, x, y, subzone)
         if GC_Settings["NPCnames"] then
             local NPC = UnitName('target')
-            step = string.format("\n    >>||Tinterface/worldmap/chatbubble_64grey.blp:20||tTalk to ||cRXP_FRIENDLY_%s||r\n    .target %s%s",NPC,NPC,step)
+            local NPCID = GetNpcId()
+            step = string.format("\n    >>||Tinterface/worldmap/chatbubble_64grey.blp:20||tTalk to ||cRXP_FRIENDLY_%s::%s||r\n    .target %s::%s%s",NPC,NPCID,NPC,NPCID,step)
         end
         step = "\nstep" .. step
     end
@@ -642,7 +674,8 @@ local function TakeFlightPath(index)
         step = string.format("\n    .goto %s,%.3f,%.3f\n    .fly %s >>Fly to %s", mapName, x, y, subzone, subzone)
         if GC_Settings["NPCnames"] then
             local NPC = UnitName('target')
-            step = string.format("\n    >>||Tinterface/worldmap/chatbubble_64grey.blp:20||tTalk to ||cRXP_FRIENDLY_%s||r\n    .target %s%s",NPC,NPC,step)
+            local NPCID = GetNpcId()
+            step = string.format("\n    >>||Tinterface/worldmap/chatbubble_64grey.blp:20||tTalk to ||cRXP_FRIENDLY_%s::%s||r\n    .target %s::%s%s",NPC,NPCID,NPC,NPCID,step)
         end
         step = '\nstep' .. step
     end
@@ -676,7 +709,12 @@ eventFrame:SetScript(
             f:SetWidth(GC_Settings.width)
             f:SetHeight(GC_Settings.height)
             print("GuideCreator Loaded")
-
+        elseif event == "PLAYER_TARGET_CHANGED" then
+            local n = UnitName('target')
+            local id = GetNpcId('target')
+            if n and id then
+                npcIdCache[n] = id
+            end
         elseif event == "PLAYER_ENTERING_WORLD" then
             onFly = UnitOnTaxi("player")
             QuestLog = getQuestData()
@@ -734,11 +772,13 @@ eventFrame:SetScript(
             questTurnIn(CquestId, Cname)
             if not UnitPlayerControlled("target") then
                 questNPC = UnitName("target")
+                questNPCID = GetNpcId('target')
             end
 
         elseif event == "QUEST_DETAIL" then
             if not UnitPlayerControlled("target") then
                 questNPC = UnitName("target")
+                questNPCID = GetNpcId('target')
             end
         elseif event == "GOSSIP_SHOW" then
             for i,v in pairs(C_GossipInfo.GetOptions()) do
